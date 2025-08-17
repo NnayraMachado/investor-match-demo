@@ -1,1 +1,49 @@
+[
+  {
+    "id": 1,
+    "name": "Ana Souza",
+    "headline": "VC Early-Stage | Fintech",
+    "location": "São Paulo, SP",
+    "tags": ["Fintech", "SaaS B2B", "Web3"],
+    "bio": "Interesses: Fintech, SaaS B2B, Web3. Ingresso: R$ 300k - 2M. Tese: VC Early-Stage | Fintech.",
+    "image": "assets/photos/ana.jpg"
+  },
+  {
+    "id": 2,
+    "name": "Bruno Lima",
+    "headline": "Anjo | Agtech, Health",
+    "location": "Campinas, SP",
+    "tags": ["Agtech", "Health", "Impacto"],
+    "bio": "Anjo ativo com mais de 10 investimentos. Interesse em Agtech, Saúde e impacto social.",
+    "image": "assets/photos/bruno.jpg"
+  },
+  {
+    "id": 3,
+    "name": "Carla Mendes",
+    "headline": "VC Growth | SaaS, AI",
+    "location": "Rio de Janeiro, RJ",
+    "tags": ["AI", "SaaS", "Growth"],
+    "bio": "Foco em SaaS B2B e inteligência artificial. Ticket: R$ 5M - 20M.",
+    "image": "assets/photos/carla.jpg"
+  },
+  {
+    "id": 4,
+    "name": "Daniel Costa",
+    "headline": "Anjo | Marketplace, Retail",
+    "location": "Florianópolis, SC",
+    "tags": ["Marketplace", "Retail", "E-commerce"],
+    "bio": "Investidor com experiência em varejo e marketplaces digitais.",
+    "image": "assets/photos/daniel.jpg"
+  },
+  {
+    "id": 5,
+    "name": "Eduarda Nogueira",
+    "headline": "VC Impact | Sustentabilidade",
+    "location": "Belo Horizonte, MG",
+    "tags": ["Impacto", "Sustentabilidade", "Agro"],
+    "bio": "Tese de impacto social e ambiental. Interesse em Agro Sustentável e energias limpas.",
+    "image": "assets/photos/eduarda.jpg"
+  }
+]
+
 
