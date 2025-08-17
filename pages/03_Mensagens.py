@@ -1,107 +1,106 @@
 # pages/03_Mensagens.py
-import json, time, random
+import json
 from pathlib import Path
 import streamlit as st
 
+# ---------- utils ----------
 BASE_DIR = Path(__file__).resolve().parents[1]
-PROFILES_JSON = BASE_DIR/"assets"/"profiles.json"
+PROFILE_FILE = BASE_DIR / "assets" / "profiles.json"
+
+def norm_img_path(p):
+    return p.replace("\\", "/") if isinstance(p, str) else p
 
 @st.cache_data
 def load_profiles():
-    with open(PROFILES_JSON,"r",encoding="utf-8") as f: 
-        return json.load(f)
+    if PROFILE_FILE.exists():
+        with open(PROFILE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    return []
 
-profiles = load_profiles()
-matches = list(st.session_state.get("matches", set()))
+def show_thumb(img_rel: str, width: int = 110):
+    img_rel = norm_img_path(img_rel or "")
+    if img_rel and not img_rel.startswith("http") and (BASE_DIR / img_rel).exists():
+        st.image(img_rel, width=width)
+    elif img_rel.startswith("http"):
+        st.image(img_rel, width=width)
+    else:
+        st.image("https://via.placeholder.com/220.png?text=Perfil", width=width)
 
-# CSS balões de chat
+# ---------- estado ----------
+st.session_state.setdefault("matches", set())
+st.session_state.setdefault("chat_with", None)
+st.session_state.setdefault("chats", {})  # dict: id -> list[(sender, text)]
+
+# ---------- page ----------
+st.set_page_config(page_title="Mensagens", page_icon="💬", layout="centered")
+
+# CSS compacto / tipo celular
 st.markdown("""
 <style>
-.msg {padding:8px 12px; border-radius:14px; margin:6px 0; max-width:78%;}
-.me  {background:#e9f5ff; margin-left:auto;}
-.them{background:#f5f5f5;}
-.meta{font-size:11px; color:#777; margin-top:-4px;}
+.app-wrapper { max-width: 480px; margin: 0 auto; }
+.msg-bubble { padding:10px 12px; border-radius:12px; margin:6px 0; max-width: 90%; }
+.msg-me { background:#e8f0ff; margin-left:auto; }
+.msg-them { background:#f5f5f5; margin-right:auto; }
+.meta { color:#6b7280; font-size:12px; }
 </style>
 """, unsafe_allow_html=True)
 
-_, mid, _ = st.columns([1,2,1])
-with mid:
-    st.markdown("### 💬 Mensagens")
+st.markdown('<div class="app-wrapper">', unsafe_allow_html=True)
+st.markdown("## 💬 Mensagens")
 
-    if not matches:
-        st.write("Ainda não há *matches*. Volte ao **Explorar** e curta alguns perfis.")
-        st.stop()
+profiles = load_profiles()
 
-    for idx in matches:
-        p = profiles[idx % len(profiles)]
-        with st.expander(f"{p['name']} — {p['headline']}"):
-            with st.container(border=True):
-                # status (Pro)
-                if st.session_state.get("user_plan") == "Pro":
-                    status = "🟢 Online agora" if p.get("is_online") else f"⏱️ Último acesso há {p.get('last_seen_min', 15)} min"
-                    st.caption(status)
+# Lista de matches disponíveis (com fallback se não houver)
+match_ids = list(st.session_state.get("matches") or [])
+if not match_ids:
+    st.info("Você ainda não tem matches. Volte ao **Explorar (Swipe)** e curta alguns perfis.")
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.stop()
 
-                st.image(p["image"], width=100)
-                st.write(p["bio"])
+# Se não tiver alguém selecionado, pegue o último match
+if st.session_state["chat_with"] is None:
+    last = st.session_state.get("last_match_idx")
+    st.session_state["chat_with"] = last if last in match_ids else match_ids[-1]
 
-                key_history = f"chat_history_{idx}"
-                if key_history not in st.session_state:
-                    st.session_state[key_history] = []   # lista de tuplas: (autor, texto, status)
+# Perfil atual com quem estamos falando
+pid = st.session_state["chat_with"]
+other = next((x for x in profiles if x.get("id")==pid), None)
 
-                # respostas rápidas
-                st.caption("Respostas rápidas:")
-                q1, q2, q3 = st.columns(3)
-                with q1:
-                    if st.button("👉 Enviar deck", key=f"qr1_{idx}"):
-                        st.session_state[key_history].append(("Você","Segue meu deck. Podemos falar amanhã?","sent"))
-                        st.rerun()
-                with q2:
-                    if st.button("📅 Marcar call", key=f"qr2_{idx}"):
-                        st.session_state[key_history].append(("Você","Tem agenda na quinta às 15h?","sent"))
-                        st.rerun()
-                with q3:
-                    if st.button("💬 Sobre a tese", key=f"qr3_{idx}"):
-                        st.session_state[key_history].append(("Você","Nossa tese é SaaS B2B com LTV/CAC > 3.","sent"))
-                        st.rerun()
+if not other:
+    st.warning("Não foi possível carregar o match selecionado.")
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.stop()
 
-                # input de mensagem
-                msg = st.text_input("Sua mensagem", key=f"input_{idx}", placeholder="Digite e pressione Enter")
-                if msg and ("Você", msg, "sent") not in st.session_state[key_history]:
-                    # adiciona e simula status
-                    st.session_state[key_history].append(("Você", msg, "delivered"))
-                    if st.session_state.get("user_plan") == "Pro":
-                        st.session_state[key_history][-1] = ("Você", msg, "read")
+# Cabeçalho do chat
+with st.container(border=True):
+    cL, cR = st.columns([1,4])
+    with cL:
+        show_thumb(other.get("image",""), width=110)
+    with cR:
+        st.markdown(f"**Chat com {other.get('name','')}** — {other.get('headline','')}")
+        st.caption(other.get("bio",""))
 
-                    # resposta automática
-                    with st.spinner("Digitando..."):
-                        time.sleep(0.6)
-                    st.session_state[key_history].append((p["name"], "Legal! Vamos marcar uma call para falar do deal?", "delivered"))
-                    st.rerun()
+# Área de histórico
+hist = st.session_state["chats"].setdefault(pid, [])
+st.markdown("---")
+st.caption("Histórico")
+for sender, text in hist:
+    klass = "msg-me" if sender=="me" else "msg-them"
+    align = "right" if sender=="me" else "left"
+    st.markdown(f'<div class="msg-bubble {klass}" style="text-align:{align}">{text}</div>', unsafe_allow_html=True)
 
-                # render do histórico
-                for autor, texto, status in st.session_state[key_history]:
-                    align = "me" if autor == "Você" else "them"
-                    st.markdown(f'<div class="msg {align}"><b>{autor}:</b> {texto}</div>', unsafe_allow_html=True)
-                    if autor == "Você" and st.session_state.get("user_plan") == "Pro":
-                        ticks = "✔✔" if status == "read" else "✔"
-                        st.markdown(f'<div class="meta" style="text-align:right;">{ticks}</div>', unsafe_allow_html=True)
+# Caixa de envio
+st.markdown("---")
+with st.form(key=f"form_send_{pid}", clear_on_submit=True):
+    msg = st.text_input("Sua mensagem", key=f"msg_input_{pid}")
+    sent = st.form_submit_button("Enviar", use_container_width=True)
+    if sent and msg.strip():
+        # grava minha msg
+        hist.append(("me", msg.strip()))
+        # resposta automática simples para demo
+        reply = "Perfeito! Vamos marcar uma call? 😊"
+        hist.append(("them", reply))
+        st.session_state["chats"][pid] = hist
+        st.rerun()
 
-                st.divider()
-                # Agendar call (demo)
-                st.markdown("**Agendar Call (demo)**")
-                slot = st.radio("Escolha um horário", ["Amanhã 10:00", "Amanhã 15:00", "Sexta 11:30"],
-                                horizontal=True, key=f"slot_{idx}")
-                if st.button("Gerar link de Meet (demo)", key=f"meet_{idx}"):
-                    fake = f"https://meet.google.com/{random.choice(['abc-defg-hij','xyz-1234-pqr','invest-777'])}"
-                    st.success(f"✅ Call confirmada: **{slot}** — Link: {fake}")
-
-                st.divider()
-                # Clube Deal (demo)
-                st.markdown("**Clube Deal (demo)**")
-                key_club = f"club_{idx}"
-                if st.button("Criar Clube Deal", key=f"btn_club_{idx}"):
-                    st.session_state[key_club] = random.randint(2, 6)
-                if key_club in st.session_state:
-                    n = st.session_state[key_club]
-                    st.info(f"👥 Clube Deal criado com **{n} investidores** interessados.")
-                    st.caption("No produto, aqui rolaria um chat em grupo e cap table compartilhada.")
+st.markdown("</div>", unsafe_allow_html=True)
