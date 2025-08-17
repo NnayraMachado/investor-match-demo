@@ -2,12 +2,12 @@ import streamlit as st
 import json
 from pathlib import Path
 
-# ---------- utils ----------
-def norm_img_path(p):
-    return p.replace("\\", "/") if isinstance(p, str) else p
-
+# -------- utils ----------
 BASE_DIR = Path(__file__).resolve().parent
 PROFILE_FILE = BASE_DIR / "assets" / "profiles.json"
+
+def norm_img_path(p):
+    return p.replace("\\", "/") if isinstance(p, str) else p
 
 def load_profiles():
     if PROFILE_FILE.exists():
@@ -15,28 +15,35 @@ def load_profiles():
             return json.load(f)
     return []
 
-# ---------- page ----------
-st.set_page_config(page_title="Investor Match", page_icon="💼", layout="wide")
+def show_image(img_rel: str, height: int = 360):
+    """Mostra imagem local/URL com fallback e recorte (object-fit: cover via CSS)."""
+    img_rel = norm_img_path(img_rel or "")
+    # Usaremos st.image com caminho RELATIVO (repo root)
+    if img_rel and not img_rel.startswith("http") and (BASE_DIR / img_rel).exists():
+        st.image(img_rel, use_container_width=True)
+    elif img_rel.startswith("http"):
+        st.image(img_rel, use_container_width=True)
+    else:
+        st.image("https://via.placeholder.com/800x600.png?text=Investor+Match", use_container_width=True)
 
-# CSS global: container central compacto e cards com imagem recortada
+# -------- page ----------
+st.set_page_config(page_title="Investor Match", page_icon="💼", layout="centered")
+
+# CSS global: containers compactos e imagem recortada
 st.markdown("""
 <style>
-/* largura tipo celular para páginas que usam .app-wrapper */
-.app-wrapper { max-width: 420px; margin: 0 auto; }
 .home-wrapper { max-width: 960px; margin: 0 auto; }
-
-/* imagem de destaque na home */
-.card-img {
-  width: 100%;
-  height: 360px;          /* evita ficar gigante */
+.app-wrapper  { max-width: 420px; margin: 0 auto; }
+.home-wrapper .stImage img,
+.app-wrapper  .stImage img {
+  height: 360px;
   object-fit: cover;
   border-radius: 14px;
-  display: block;
 }
 @media (max-width: 480px){
-  .card-img { height: 260px; }
+  .home-wrapper .stImage img,
+  .app-wrapper  .stImage img { height: 260px; }
 }
-.section-title { margin: 6px 0 2px 0; font-weight: 700; }
 .badges span{
   margin-right: 6px; font-size: 12px; padding:3px 8px; border-radius:8px;
   background:#f2f4f7; border:1px solid #e5e7eb;
@@ -44,6 +51,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# sidebar de navegação (demo)
 st.sidebar.title("Menu")
 st.sidebar.page_link("app.py", label="app")
 st.sidebar.page_link("pages/00_Apresentacao.py", label="Apresentacao")
@@ -60,26 +68,17 @@ st.caption("Conectando investidores e startups de forma inteligente.")
 
 profiles = load_profiles()
 
-with st.container():
-    st.markdown('<div class="home-wrapper">', unsafe_allow_html=True)
+st.markdown('<div class="home-wrapper">', unsafe_allow_html=True)
+st.subheader("Perfis em destaque")
 
-    st.subheader("Perfis em destaque")
-    if profiles:
-        for p in profiles[:2]:
-            img_rel = norm_img_path(p.get("image",""))
-            # tenta caminho relativo no repo
-            path = BASE_DIR / img_rel if img_rel and not img_rel.startswith("http") else None
-            if path and path.exists():
-                st.markdown(f'<img src="{path.as_posix()}" class="card-img">', unsafe_allow_html=True)
-            else:
-                # placeholder seguro
-                st.markdown('<img src="https://via.placeholder.com/800x600.png?text=Investor+Match" class="card-img">', unsafe_allow_html=True)
+if profiles:
+    for p in profiles[:2]:
+        show_image(p.get("image", ""))           # ✅ st.image com fallback
+        st.markdown(f"**{p['name']}**")
+        st.caption(f"{p.get('headline','')} • {p.get('location','')}")
+        st.write(p.get("bio",""))
+        st.divider()
+else:
+    st.info("Sem perfis para exibir ainda.")
 
-            st.markdown(f"**{p['name']}**")
-            st.caption(f"{p['headline']} • {p.get('location','')}")
-            st.write(p.get("bio",""))
-            st.divider()
-    else:
-        st.info("Sem perfis para exibir ainda.")
-
-    st.markdown("</div>", unsafe_allow_html=True)
+st.markdown("</div>", unsafe_allow_html=True)
