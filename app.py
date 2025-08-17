@@ -33,20 +33,20 @@ st.set_page_config(page_title="Investor Match", page_icon="💼", layout="center
 st.markdown("""
 <style>
 .home-wrapper { max-width: 960px; margin: 0 auto; }
-.app-wrapper  { max-width: 420px; margin: 0 auto; }
+.app-wrapper { max-width: 420px; margin: 0 auto; }
 .home-wrapper .stImage img,
-.app-wrapper  .stImage img {
-  height: 360px;
-  object-fit: cover;
-  border-radius: 14px;
+.app-wrapper .stImage img {
+    height: 360px;
+    object-fit: cover;
+    border-radius: 14px;
 }
 @media (max-width: 480px){
-  .home-wrapper .stImage img,
-  .app-wrapper  .stImage img { height: 260px; }
+    .home-wrapper .stImage img,
+    .app-wrapper .stImage img { height: 260px; }
 }
 .badges span{
-  margin-right: 6px; font-size: 12px; padding:3px 8px; border-radius:8px;
-  background:#f2f4f7; border:1px solid #e5e7eb;
+    margin-right: 6px; font-size: 12px; padding:3px 8px; border-radius:8px;
+    background:#f2f4f7; border:1px solid #e5e7eb;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -73,7 +73,7 @@ st.subheader("Perfis em destaque")
 
 if profiles:
     for p in profiles[:2]:
-        show_image(p.get("image", ""))           # ✅ st.image com fallback
+        show_image(p.get("image", ""))
         st.markdown(f"**{p['name']}**")
         st.caption(f"{p.get('headline','')} • {p.get('location','')}")
         st.write(p.get("bio",""))
