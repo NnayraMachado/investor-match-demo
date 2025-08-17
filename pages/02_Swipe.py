@@ -48,7 +48,7 @@ st.markdown("""
 <style>
 .app-wrapper { max-width: 420px; margin: 0 auto; }
 .app-wrapper .stImage img {
-  height: 360px;              /* <= fica menor */
+  height: 300px;              /* <= fica menor */
   object-fit: cover;
   border-radius: 16px;
   box-shadow: 0 8px 24px rgba(0,0,0,.08);
@@ -167,3 +167,4 @@ if st.button("💥 Forçar Match (demo)", key=f"force_{pid}"):
         st.success("É um match! (forçado)")
 
 st.markdown("</div>", unsafe_allow_html=True)
+
