@@ -36,9 +36,13 @@ def avatar(img_rel: str|None, width: int = 88):
 # ---------- state ----------
 st.session_state.setdefault("matches", set())
 st.session_state.setdefault("chat_with", None)
-st.session_state.setdefault("chats", {})          # {profile_id: [ {sender,text,ts,delivered_at,read_at,id} ]}
+st.session_state.setdefault("chats", {})      # {profile_id: [ {sender,text,ts,delivered_at,read_at,id} ]}
 st.session_state.setdefault("typing_their_until", 0.0)  # timestamp
 st.session_state.setdefault("user_name", "Você")
+
+# --- Função de Callback para o 'on_change' ---
+def handle_typing_indicator():
+    st.session_state.typing_their_until = time.time() + 2
 
 # ---------- page ----------
 st.set_page_config(page_title="Mensagens", page_icon="💬", layout="centered")
@@ -86,7 +90,7 @@ with st.container(border=True):
     with c1:
         avatar(other.get("image",""), width=88)
     with c2:
-        verified = other.get("verified", True)  # fallback demo: quase todos verificados
+        verified = other.get("verified", True)
         headline = other.get("headline","")
         is_online = other.get("is_online", True)
         last_seen_min = other.get("last_seen_min", 5)
@@ -112,7 +116,7 @@ with st.expander("🔒 Dicas rápidas de segurança"):
 
 # --- histórico ---
 now = time.time()
-hist = st.session_state["chats"].setdefault(pid, [])  # list de dicts
+hist = st.session_state["chats"].setdefault(pid, [])
 
 st.markdown("----")
 st.caption("Histórico")
@@ -142,8 +146,7 @@ st.markdown("----")
 
 # --- envio de mensagens ---
 with st.form(key=f"form_send_{pid}", clear_on_submit=True):
-    msg = st.text_input("Sua mensagem", key=f"msg_input_{pid}",
-                        on_change=lambda: st.session_state.update(typing_their_until=time.time()+2))
+    msg = st.text_input("Sua mensagem", key=f"msg_input_{pid}", on_change=handle_typing_indicator)
     sent = st.form_submit_button("Enviar", use_container_width=True)
     if sent and msg.strip():
         ts = time.time()
@@ -153,8 +156,8 @@ with st.form(key=f"form_send_{pid}", clear_on_submit=True):
             "sender": "me",
             "text": msg.strip(),
             "ts": ts,
-            "delivered_at": ts + 0.8,   # ~800ms
-            "read_at": ts + 2.2         # ~2.2s
+            "delivered_at": ts + 0.8,  # ~800ms
+            "read_at": ts + 2.2        # ~2.2s
         })
         # resposta automática de demonstração
         hist.append({
@@ -173,7 +176,7 @@ st.subheader("📅 Agendar call (demo)")
 # sugestões rápidas (próximos dias/horas)
 opts = []
 base = datetime.now()
-for d in (1, 2, 3):   # amanhã, +2, +3 dias
+for d in (1, 2, 3):    # amanhã, +2, +3 dias
     for hr in (10, 14, 18):
         t = (base + timedelta(days=d)).replace(hour=hr, minute=0, second=0, microsecond=0)
         opts.append(t)
