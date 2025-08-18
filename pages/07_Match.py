@@ -1,4 +1,3 @@
-# pages/07_Match.py
 import json
 from pathlib import Path
 import streamlit as st
@@ -9,14 +8,10 @@ PROFILE_FILE = BASE_DIR / "assets" / "profiles.json"
 def load_profiles():
     if PROFILE_FILE.exists():
         with open(PROFILE_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        for p in data:
-            p.setdefault("type","investor")
-            p.setdefault("icon","💰" if p["type"]=="investor" else "🚀")
-        return data
+            return json.load(f)
     return []
 
-def profile_icon(p): return p.get("icon") or ("💰" if p.get("type")=="investor" else "🚀")
+def icon_of(p): return p.get("icon","💰" if p.get("type")=="investor" else "🚀")
 
 st.set_page_config(page_title="Match", page_icon="✨", layout="centered")
 st.markdown("""
@@ -32,11 +27,11 @@ st.markdown('<div class="app">', unsafe_allow_html=True)
 st.markdown("## ✨ Deu Match!")
 
 pid = st.session_state.get("last_match_idx")
-name = st.session_state.get("last_match_name", "Investidor")
+name = st.session_state.get("last_match_name", "Perfil")
 
 profiles = load_profiles()
 other = next((x for x in profiles if x.get("id")==pid), None)
-icon_other = profile_icon(other) if other else "💰"
+icon_other = icon_of(other) if other else "💰"
 
 colA, colB = st.columns(2)
 with colA:
@@ -46,15 +41,18 @@ with colB:
     st.markdown(f'<div class="portrait"><span>{icon_other}</span></div>', unsafe_allow_html=True)
     st.caption(name)
 
-st.success("Agora vocês podem conversar! 🎉")
+st.success("Agora vocês podem conversar e abrir um Dealroom! 🎉")
 
-c1, c2 = st.columns(2)
+c1, c2, c3 = st.columns(3)
 with c1:
-    if st.button("💬 Ir para Mensagens", use_container_width=True, key="go_msgs"):
+    if st.button("💬 Mensagens", use_container_width=True):
         try: st.switch_page("pages/03_Mensagens.py")
         except Exception: st.info("Abra **Mensagens** no menu.")
 with c2:
-    if st.button("🔙 Voltar ao Swipe", use_container_width=True, key="back_swipe"):
+    if st.button("📂 Dealroom", use_container_width=True):
+        st.switch_page("pages/09_Dealroom.py")
+with c3:
+    if st.button("🔙 Voltar ao Swipe", use_container_width=True):
         try: st.switch_page("pages/02_Swipe.py")
         except Exception: st.info("Abra **Swipe** no menu.")
 
