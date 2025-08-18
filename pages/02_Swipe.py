@@ -4,6 +4,10 @@ from pathlib import Path
 from secrets import randbelow
 import streamlit as st
 
+# --- opcional (radar) ---
+import numpy as np
+import matplotlib.pyplot as plt
+
 BASE_DIR = Path(__file__).resolve().parents[1]
 PROFILE_FILE = BASE_DIR / "assets" / "profiles.json"
 FREE_LIKES_PER_HOUR = 10  # Free
@@ -14,18 +18,20 @@ def load_profiles():
             data = json.load(f)
         for p in data:
             p.setdefault("pitch_url", None)
-            p.setdefault("type", "investor")
+            p.setdefault("type", "investor")  # investor | startup
             p.setdefault("icon", "💰" if p["type"] == "investor" else "🚀")
             p.setdefault("lat", None); p.setdefault("lon", None)
             p.setdefault("tags", p.get("tags", ["SaaS","Fintech"]))
             p.setdefault("stage", "Seed")
-            p.setdefault("raising", 1500)        # mil USD
+            p.setdefault("raising", 1500)        # mil USD (ex.: 1500 = US$1,5M)
             p.setdefault("ticket_min", 100)
             p.setdefault("ticket_max", 2000)
+            p.setdefault("metrics", None)        # startups podem ter: {"MRR": int, "growth_rate": float, "churn": float}
         return data
     return []
 
-def icon_of(p): return p.get("icon") or ("💰" if p.get("type")=="investor" else "🚀")
+def icon_of(p): 
+    return p.get("icon") or ("💰" if p.get("type")=="investor" else "🚀")
 
 profiles = load_profiles()
 
@@ -37,6 +43,10 @@ st.session_state.setdefault("passed", set())
 st.session_state.setdefault("history", [])
 st.session_state.setdefault("my_tags", ["SaaS", "Fintech"])
 st.session_state.setdefault("user_plan", st.session_state.get("user_plan","Free"))
+st.session_state.setdefault("my_type", st.session_state.get("my_type","investor"))
+st.session_state.setdefault("my_stage", st.session_state.get("my_stage","Seed"))
+st.session_state.setdefault("my_ticket_min", st.session_state.get("my_ticket_min",100))
+st.session_state.setdefault("my_ticket_max", st.session_state.get("my_ticket_max",2000))
 st.session_state.setdefault("my_lat", -23.5505)
 st.session_state.setdefault("my_lon", -46.6333)
 st.session_state.setdefault("boost_left", 1 if st.session_state["user_plan"]=="Pro" else 0)
@@ -62,7 +72,7 @@ def they_like_back(profile_id: int) -> bool:
         st.session_state[key] = randbelow(100) < 30
     return st.session_state[key]
 
-# distância
+# --- distância / compatibilidade ---
 def haversine_km(lat1, lon1, lat2, lon2):
     R = 6371.0
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
@@ -79,36 +89,55 @@ def distance_km(p):
         return int(round(haversine_km(my_lat, my_lon, lat2, lon2)))
     rnd = random.Random(p.get("id",0)); return rnd.randint(1,25)
 
-# compatibilidade avançada (0–100)
 def compat_score(p):
+    """Retorna (score 0-100, breakdown dict)."""
     my_tags = set(t.lower() for t in st.session_state.get("my_tags", []))
     their_tags = set(t.lower() for t in p.get("tags", []))
     jacc = (100 * len(my_tags & their_tags) / max(1, len(my_tags | their_tags)))
 
-    # estágio e ticket (se eu for investidor)
-    stage_fit = 100 if st.session_state.get("my_type","investor")=="investor" and st.session_state.get("my_stage") in [p.get("stage")] else (70 if st.session_state.get("my_type")=="startup" and p.get("stage")==st.session_state.get("my_stage","Seed") else 50)
-    # ticket match
+    # estágio
+    my_stage = st.session_state.get("my_stage","Seed")
+    stg = p.get("stage","Seed")
+    if st.session_state.get("my_type","investor") == "investor":
+        stage_fit = 100 if stg in ["Pre-Seed","Seed","Series A"] else 80
+    else:
+        stage_fit = 100 if stg == my_stage else (70 if (my_stage,stg) in [("Pre-Seed","Seed"),("Seed","Pre-Seed"),("Seed","Series A")] else 50)
+
+    # ticket match (quanto a startup quer levantar vs meu range)
     raising = p.get("raising",1500)
     tmin = st.session_state.get("my_ticket_min", 100)
     tmax = st.session_state.get("my_ticket_max", 2000)
     if tmin <= raising <= tmax:
         ticket_fit = 100
     else:
-        # penaliza proporcionalmente
-        diff = min(abs(raising - max(tmin,tmax)), 2000)
-        ticket_fit = max(0, 100 - diff*0.05)
+        diff = min(abs(raising - (tmax if raising>tmax else tmin)), 4000)
+        ticket_fit = max(0, 100 - diff*0.04)
 
-    # distância (quanto mais perto, melhor)
+    # distância
     dist = distance_km(p)
-    dist_fit = 100 if dist <= 20 else (80 if dist <= 100 else (60 if dist <= 300 else 40))
+    dist_fit = 100 if dist <= 20 else (85 if dist <= 100 else (65 if dist <= 300 else 45))
 
-    # pesos (Pro vê o breakdown)
-    return round(0.4*jacc + 0.3*stage_fit + 0.2*ticket_fit + 0.1*dist_fit), {
-        "Tags": round(jacc),
-        "Estágio": round(stage_fit),
-        "Ticket": round(ticket_fit),
-        "Distância": round(dist_fit),
-    }
+    score = round(0.4*jacc + 0.3*stage_fit + 0.2*ticket_fit + 0.1*dist_fit)
+    return score, {"Tags": round(jacc), "Estágio": round(stage_fit), "Ticket": round(ticket_fit), "Distância": round(dist_fit)}
+
+def radar_plot(breakdown: dict, title: str = "Compatibilidade"):
+    """Desenha radar simples com matplotlib e o retorna via st.pyplot."""
+    labels = list(breakdown.keys())
+    values = list(breakdown.values())
+    # fecha o loop
+    labels += [labels[0]]
+    values += [values[0]]
+
+    angles = np.linspace(0, 2*np.pi, len(labels), endpoint=False)
+    fig = plt.figure(figsize=(4,4))
+    ax = plt.subplot(111, polar=True)
+    ax.plot(angles, values)
+    ax.fill(angles, values, alpha=0.1)
+    ax.set_xticks(angles)
+    ax.set_xticklabels(labels)
+    ax.set_yticklabels([])
+    ax.set_title(title, va='bottom')
+    st.pyplot(fig, use_container_width=True)
 
 # ---------- page ----------
 st.set_page_config(page_title="Explorar (Swipe)", page_icon="🔥", layout="centered")
@@ -127,6 +156,7 @@ st.markdown("""
   border:1px solid #eaeaea; border-radius:999px; background:#fafafa; }
 .meta, .distance, .small { color:#6b7280; font-size:13px; }
 .comp-wrap { margin: 6px 0 4px 0; }
+.metric-row { margin-top: 6px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -148,6 +178,7 @@ if not profiles:
 idx = st.session_state["swipe_idx"] % len(profiles)
 p = profiles[idx]; pid = p.get("id", idx)
 
+# ÍCONE no topo
 st.markdown(f'<div class="card-icon"><span>{icon_of(p)}</span></div>', unsafe_allow_html=True)
 st.markdown('<div class="badges"><span>🛡️ Verificado</span><span>🟢 Online</span></div>', unsafe_allow_html=True)
 
@@ -155,21 +186,41 @@ headline = p.get("headline", "")
 city = p.get("city", p.get("location","")); country = p.get("country","Brasil")
 st.markdown(f"**{icon_of(p)} {p.get('name','')}**")
 st.markdown(f'<div class="meta">{headline} • {city} • {country}</div>', unsafe_allow_html=True)
-st.markdown(f'<div class="small">Estágio: {p.get("stage","Seed")} · Rodada: ${p.get("raising",1500)}k · Ticket alvo: ${p.get("ticket_min",100)}k–${p.get("ticket_max",2000)}k</div>', unsafe_allow_html=True)
+
+# info de estágio e captação (se existir)
+st.markdown(f'<div class="small">Estágio: {p.get("stage","Seed")} · Rodada alvo: ${p.get("raising",1500)}k · Ticket alvo: ${p.get("ticket_min",100)}k–${p.get("ticket_max",2000)}k</div>', unsafe_allow_html=True)
 st.markdown(f'<div class="distance">~{distance_km(p)} km de você</div>', unsafe_allow_html=True)
 
+# compatibilidade
 score, breakdown = compat_score(p)
 st.markdown(f'<div class="comp-wrap">Compatibilidade: <b>{score}%</b></div>', unsafe_allow_html=True)
 st.progress(score)
 
-with st.expander("Ver detalhes da compatibilidade (Pro)"):
+# Pro: radar e métricas
+with st.expander("🔎 Detalhes da compatibilidade (Pro)"):
     if st.session_state.get("user_plan")!="Pro":
-        st.warning("🔒 Assine o Pro para ver o detalhe do score por dimensão (tags, estágio, ticket, distância).")
+        st.warning("🔒 Assine o Pro para ver o radar de compatibilidade e o breakdown por dimensão.")
     else:
-        for k,v in breakdown.items():
-            st.write(f"{k}: {v}%")
-            st.progress(v)
+        radar_plot(breakdown, "Compatibilidade")
+        st.caption("Score ponderado por Tags (40%), Estágio (30%), Ticket (20%), Distância (10%).")
 
+# métricas de startup (se o perfil for startup)
+if p.get("type") == "startup":
+    if st.session_state.get("user_plan")=="Pro":
+        m = p.get("metrics") or {}
+        colm1, colm2, colm3 = st.columns(3)
+        with colm1: st.metric("MRR (USD)", f"{m.get('MRR', 0):,}".replace(',', '.'))
+        with colm2: st.metric("Growth", f"{int(100*m.get('growth_rate', 0))}%")
+        with colm3: st.metric("Churn", f"{int(100*m.get('churn', 0))}%")
+    else:
+        st.info("🔒 Métricas de tração disponíveis no **Pro**.")
+
+# pitch (toggle)
+if p.get("pitch_url"):
+    if st.checkbox("▶️ Ver pitch (vídeo)", key=f"pitch_{pid}"):
+        st.video(p["pitch_url"])
+
+# bio + tags
 st.write(p.get("bio",""))
 st.markdown("".join([f'<span class="chip">{t}</span>' for t in p.get("tags", [])]), unsafe_allow_html=True)
 
