@@ -27,6 +27,7 @@ def human_last_seen(is_online: bool, last_seen_min: int|None) -> str:
     h = last_seen_min // 60
     return f"visto há {h} h"
 
+# distância
 def haversine_km(lat1, lon1, lat2, lon2):
     R = 6371.0
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
@@ -43,8 +44,7 @@ def distance_label(other_profile: dict) -> str:
     if all(v is not None for v in (my_lat, my_lon, lat2, lon2)):
         km = haversine_km(my_lat, my_lon, lat2, lon2)
         return f"~{int(round(km))} km de você"
-    rnd = random.Random(other_profile.get("id",0))
-    return f"~{rnd.randint(1,25)} km de você"
+    rnd = random.Random(other_profile.get("id",0)); return f"~{rnd.randint(1,25)} km de você"
 
 # ---------- state ----------
 st.session_state.setdefault("matches", set())
@@ -52,7 +52,7 @@ st.session_state.setdefault("chat_with", None)
 st.session_state.setdefault("chats", {})
 st.session_state.setdefault("typing_their_until", 0.0)
 st.session_state.setdefault("user_name", "Você")
-st.session_state.setdefault("my_lat", -23.5505)  # padrão demo
+st.session_state.setdefault("my_lat", -23.5505)
 st.session_state.setdefault("my_lon", -46.6333)
 
 st.set_page_config(page_title="Mensagens", page_icon="💬", layout="centered")
@@ -80,8 +80,6 @@ st.markdown('<div class="app">', unsafe_allow_html=True)
 st.markdown("## 💬 Mensagens")
 
 profiles = load_profiles()
-
-# matches
 match_ids = list(st.session_state.get("matches") or [])
 if not match_ids:
     st.info("Você ainda não tem matches. Volte ao **Explorar (Swipe)** e curta alguns perfis.")
@@ -97,7 +95,6 @@ if not other:
     st.warning("Não foi possível carregar o match selecionado.")
     st.markdown("</div>", unsafe_allow_html=True); st.stop()
 
-# header
 with st.container(border=True):
     c1, c2 = st.columns([1,4])
     with c1:
@@ -111,90 +108,54 @@ with st.container(border=True):
             f"<div class='header-line'>"
             f"<div><b>{profile_icon(other)} Chat com {other.get('name','')}</b>"
             f"{' <span class=\"badge\">🛡️ Verificado</span>' if verified else ''}</div>"
-            f"</div>",
-            unsafe_allow_html=True
+            f"</div>", unsafe_allow_html=True
         )
         st.caption(f"{headline} • {human_last_seen(is_online,last_seen_min)}")
         st.markdown(f"<span class='distance'>{distance_label(other)}</span>", unsafe_allow_html=True)
-        if other.get("bio"):
-            st.caption(other["bio"])
+        if other.get("bio"): st.caption(other["bio"])
 
-# segurança
 with st.expander("🔒 Dicas rápidas de segurança"):
-    st.markdown(
-        "- Nunca envie chaves privadas, código de autenticação ou dados bancários pelo chat.\n"
-        "- Desconfie de pedidos de adiantamento fora da plataforma.\n"
-        "- Prefira **calls gravadas** e **documentos assinados**.\n"
-        "- Perfis **Verificados** passam checagens de identidade/documentos."
-    )
+    st.markdown("- Nunca envie chaves privadas, códigos ou dados bancários.\n- Prefira **calls gravadas** e **documentos assinados**.\n- Perfis **Verificados** passam checagens de identidade.")
 
-# histórico
 now = time.time()
 hist = st.session_state["chats"].setdefault(pid, [])
 
 st.markdown("----")
 st.caption("Histórico")
 st.markdown("<div class='msg-wrap'>", unsafe_allow_html=True)
-
 for m in hist:
-    who = m["sender"]
-    klass = "me" if who=="me" else "them"
+    who = m["sender"]; klass = "me" if who=="me" else "them"
     st.markdown(f"<div class='msg {klass}'>{m['text']}</div>", unsafe_allow_html=True)
     if who == "me":
-        delivered = now >= m.get("delivered_at", 0)
-        read = now >= m.get("read_at", 0)
-        if read:
-            st.markdown("<div class='meta'>✔✔ lido</div>", unsafe_allow_html=True)
-        elif delivered:
-            st.markdown("<div class='meta'>✔ entregue</div>", unsafe_allow_html=True)
-
+        delivered = now >= m.get("delivered_at", 0); read = now >= m.get("read_at", 0)
+        if read: st.markdown("<div class='meta'>✔✔ lido</div>", unsafe_allow_html=True)
+        elif delivered: st.markdown("<div class='meta'>✔ entregue</div>", unsafe_allow_html=True)
 st.markdown("</div>", unsafe_allow_html=True)
 
-# digitando
 if now < st.session_state["typing_their_until"]:
     st.markdown("<div class='typing'>✍️ digitando…</div>", unsafe_allow_html=True)
 
 st.markdown("----")
 
-# envio
-input_key = f"msg_input_{pid}"
-last_key  = f"__last_val_{pid}"
-
+input_key = f"msg_input_{pid}"; last_key  = f"__last_val_{pid}"
 with st.form(key=f"form_send_{pid}", clear_on_submit=True):
     msg = st.text_input("Sua mensagem", key=input_key)
     sent = st.form_submit_button("Enviar", use_container_width=True)
 
-cur_val = st.session_state.get(input_key, "")
-prev_val = st.session_state.get(last_key, "")
-if cur_val != prev_val:
-    st.session_state["typing_their_until"] = time.time() + 2
+cur_val = st.session_state.get(input_key, ""); prev_val = st.session_state.get(last_key, "")
+if cur_val != prev_val: st.session_state["typing_their_until"] = time.time() + 2
 st.session_state[last_key] = cur_val
 
 if sent and msg.strip():
     ts = time.time()
-    hist.append({
-        "id": str(uuid.uuid4()),
-        "sender": "me",
-        "text": msg.strip(),
-        "ts": ts,
-        "delivered_at": ts + 0.8,
-        "read_at": ts + 2.2
-    })
-    hist.append({
-        "id": str(uuid.uuid4()),
-        "sender": "them",
-        "text": "Perfeito! Vamos marcar uma call? 😊",
-        "ts": ts + 1.0
-    })
+    hist.append({"id": str(uuid.uuid4()), "sender": "me","text": msg.strip(),"ts": ts,"delivered_at": ts + 0.8,"read_at": ts + 2.2})
+    hist.append({"id": str(uuid.uuid4()), "sender": "them","text": "Perfeito! Vamos marcar uma call? 😊","ts": ts + 1.0})
     st.session_state["chats"][pid] = hist
     st.rerun()
 
-# agenda / call
 st.markdown("----")
 st.subheader("📅 Agendar call (demo)")
-
-opts = []
-base = _dt.now()
+opts = []; base = _dt.now()
 for d in (1, 2, 3):
     for hr in (10, 14, 18):
         t = (base + timedelta(days=d)).replace(hour=hr, minute=0, second=0, microsecond=0)
@@ -207,25 +168,23 @@ meet_link = st.text_input("Link de vídeo (demo)", value="https://meet.google.co
 def make_ics(summary: str, start_dt: _dt, duration_min: int = 30, url: str = "") -> str:
     dtstart = start_dt.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     dtend = (start_dt + timedelta(minutes=duration_min)).astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    import uuid
     uid = f"{uuid.uuid4()}@investor-match"
-    lines = [
-        "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Investor Match Demo//PT-BR",
-        "BEGIN:VEVENT",f"UID:{uid}",
-        f"DTSTAMP:{_dt.utcnow().strftime('%Y%m%dT%H%M%SZ')}",
-        f"DTSTART:{dtstart}",f"DTEND:{dtend}",
-        f"SUMMARY:{summary}",
-        f"DESCRIPTION:Convite gerado no Investor Match Demo\\n{url}",
-        f"URL:{url}","END:VEVENT","END:VCALENDAR"
-    ]
+    lines = ["BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Investor Match Demo//PT-BR","BEGIN:VEVENT",
+             f"UID:{uid}",f"DTSTAMP:{_dt.utcnow().strftime('%Y%m%dT%H%M%SZ')}",f"DTSTART:{dtstart}",f"DTEND:{dtend}",
+             f"SUMMARY:{summary}",f"DESCRIPTION:Convite gerado no Investor Match Demo\\n{url}",f"URL:{url}","END:VEVENT","END:VCALENDAR"]
     return "\r\n".join(lines)
 
-colA, colB = st.columns(2)
+colA, colB, colC = st.columns(3)
 with colA:
     if st.button("📨 Gerar convite (.ics)", use_container_width=True, key="make_ics"):
         pick = opts[[o.strftime("%d/%m %H:%M") for o in opts].index(chosen)]
         ics_content = make_ics(title, pick, 30, meet_link)
         st.download_button("⬇️ Baixar .ics", ics_content, file_name="convite_call.ics", mime="text/calendar", use_container_width=True)
 with colB:
-    st.link_button("▶️ Abrir link de vídeo (demo)", meet_link, use_container_width=True)
+    st.link_button("▶️ Abrir link de vídeo", meet_link, use_container_width=True)
+with colC:
+    if st.button("📂 Abrir Dealroom", use_container_width=True):
+        st.switch_page("pages/09_Dealroom.py")
 
 st.markdown("</div>", unsafe_allow_html=True)
