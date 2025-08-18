@@ -12,7 +12,11 @@ def norm(p): return p.replace("\\","/") if isinstance(p,str) else p
 def load_profiles():
     if PROFILE_FILE.exists():
         with open(PROFILE_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        for p in data:
+            p.setdefault("type","investor")
+            p.setdefault("icon","💰" if p["type"]=="investor" else "🚀")
+        return data
     return []
 
 st.set_page_config(page_title="Match", page_icon="✨", layout="centered")
