@@ -7,10 +7,6 @@ import streamlit as st
 BASE_DIR = Path(__file__).resolve().parents[1]
 PROFILE_FILE = BASE_DIR / "assets" / "profiles.json"
 
-def norm(p): 
-    return p.replace("\\","/") if isinstance(p,str) else p
-
-@st.cache_data
 def load_profiles():
     if PROFILE_FILE.exists():
         with open(PROFILE_FILE, "r", encoding="utf-8") as f:
@@ -22,6 +18,8 @@ def load_profiles():
         return data
     return []
 
+def profile_icon(p): return p.get("icon") or ("💰" if p.get("type")=="investor" else "🚀")
+
 def human_last_seen(is_online: bool, last_seen_min: int|None) -> str:
     if is_online: return "🟢 online agora"
     if last_seen_min is None: return "visto recentemente"
@@ -29,16 +27,6 @@ def human_last_seen(is_online: bool, last_seen_min: int|None) -> str:
     h = last_seen_min // 60
     return f"visto há {h} h"
 
-def avatar(img_rel: str|None, width: int = 88):
-    img_rel = norm(img_rel or "")
-    if img_rel and not img_rel.startswith("http") and (BASE_DIR / img_rel).exists():
-        st.image(img_rel, width=width)
-    elif img_rel.startswith("http"):
-        st.image(img_rel, width=width)
-    else:
-        st.image("https://via.placeholder.com/176.png?text=Perfil", width=width)
-
-# distância
 def haversine_km(lat1, lon1, lat2, lon2):
     R = 6371.0
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
@@ -81,7 +69,9 @@ st.markdown("""
 .meta { color:#6b7280; font-size:12px; margin-top:2px; text-align:right; }
 .typing { font-size:12px; color:#6b7280; margin:4px 0 8px; }
 .section { margin-top:16px; }
-.avatar img { width: 88px !important; height: 88px !important; object-fit: cover; border-radius: 12px; }
+.icon-avatar { width: 88px; height: 88px; border-radius: 50%;
+               background:#eef2f7; display:flex; align-items:center; justify-content:center; }
+.icon-avatar span { font-size: 44px; }
 .distance { color:#6b7280; font-size:12px; }
 </style>
 """, unsafe_allow_html=True)
@@ -111,18 +101,15 @@ if not other:
 with st.container(border=True):
     c1, c2 = st.columns([1,4])
     with c1:
-        st.markdown('<div class="avatar">', unsafe_allow_html=True)
-        avatar(other.get("image",""), width=88)
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="icon-avatar"><span>{profile_icon(other)}</span></div>', unsafe_allow_html=True)
     with c2:
         verified = other.get("verified", True)
         headline = other.get("headline","")
         is_online = other.get("is_online", True)
         last_seen_min = other.get("last_seen_min", 5)
-        icon = other.get("icon","💰")
         st.markdown(
             f"<div class='header-line'>"
-            f"<div><b>{icon} Chat com {other.get('name','')}</b>"
+            f"<div><b>{profile_icon(other)} Chat com {other.get('name','')}</b>"
             f"{' <span class=\"badge\">🛡️ Verificado</span>' if verified else ''}</div>"
             f"</div>",
             unsafe_allow_html=True
@@ -132,7 +119,7 @@ with st.container(border=True):
         if other.get("bio"):
             st.caption(other["bio"])
 
-# alerta
+# segurança
 with st.expander("🔒 Dicas rápidas de segurança"):
     st.markdown(
         "- Nunca envie chaves privadas, código de autenticação ou dados bancários pelo chat.\n"
@@ -169,7 +156,7 @@ if now < st.session_state["typing_their_until"]:
 
 st.markdown("----")
 
-# envio (sem callbacks no form)
+# envio
 input_key = f"msg_input_{pid}"
 last_key  = f"__last_val_{pid}"
 
