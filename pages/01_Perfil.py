@@ -22,6 +22,31 @@ def load_profiles():
 
 profiles = load_profiles()
 
+# --- coordenadas simples por cidade (das que já existem no app) ---
+CITY_COORDS = {
+    # Brasil
+    ("Brasil","SP","São Paulo"): (-23.5505, -46.6333),
+    ("Brasil","SP","Campinas"): (-22.9056, -47.0608),
+    ("Brasil","SP","Santos"): (-23.9608, -46.3336),
+    ("Brasil","RJ","Rio de Janeiro"): (-22.9068, -43.1729),
+    ("Brasil","RJ","Niterói"): (-22.8832, -43.1034),
+    ("Brasil","MG","Belo Horizonte"): (-19.9245, -43.9352),
+    ("Brasil","MG","Uberlândia"): (-18.9141, -48.2749),
+    ("Brasil","PR","Curitiba"): (-25.4284, -49.2733),
+    ("Brasil","PR","Londrina"): (-23.3045, -51.1696),
+    ("Brasil","SC","Florianópolis"): (-27.5949, -48.5482),
+    ("Brasil","SC","Joinville"): (-26.3044, -48.8487),
+    ("Brasil","RS","Porto Alegre"): (-30.0346, -51.2177),
+    ("Brasil","RS","Caxias do Sul"): (-29.1634, -51.1796),
+    # Portugal
+    ("Portugal","Lisboa","Lisboa"): (38.7223, -9.1393),
+    ("Portugal","Porto","Porto"): (41.1579, -8.6291),
+    # EUA
+    ("Estados Unidos","California","San Francisco"): (37.7749, -122.4194),
+    ("Estados Unidos","California","Los Angeles"): (34.0522, -118.2437),
+    ("Estados Unidos","New York","New York"): (40.7128, -74.0060),
+}
+
 # ---- foto do usuário ----
 with st.container(border=True):
     colL, colR = st.columns([1,2], vertical_alignment="center")
@@ -81,6 +106,11 @@ with st.form("perfil"):
         st.session_state["my_city"] = cidade
         st.session_state["my_tags"] = tags
         st.session_state["user_plan"] = plano
+
+        # atualiza coordenadas
+        latlon = CITY_COORDS.get((pais, estado, cidade))
+        if latlon:
+            st.session_state["my_lat"], st.session_state["my_lon"] = latlon
         st.success("Perfil salvo!")
 
 # ---- preview do seu card (como outros veem) ----
@@ -98,6 +128,11 @@ with st.container(border=True):
     st.markdown(f"**{icon} {st.session_state.get('my_name','Você')}**")
     st.caption(f"{st.session_state.get('my_headline','')} • {st.session_state.get('my_city','')}, {st.session_state.get('my_state','')} • {st.session_state.get('my_country','')}")
     st.write(st.session_state.get("my_bio",""))
+
+    # localização (preview)
+    lat = st.session_state.get("my_lat"); lon = st.session_state.get("my_lon")
+    if lat is not None and lon is not None:
+        st.caption(f"📍 Sua localização (aprox.): {lat:.4f}, {lon:.4f}")
 
 # ---- pessoas que curtiram você (paywall) ----
 with st.container(border=True):
