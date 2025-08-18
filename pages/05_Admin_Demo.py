@@ -11,7 +11,12 @@ PROFILES_JSON = BASE_DIR / "assets" / "profiles.json"
 @st.cache_data
 def load_profiles():
     with open(PROFILES_JSON, "r", encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    for p in data:
+        p.setdefault("type","investor")
+        p.setdefault("icon","💰" if p["type"]=="investor" else "🚀")
+    return data
+
 profiles = load_profiles()
 
 # Atribui plano/status se faltarem
