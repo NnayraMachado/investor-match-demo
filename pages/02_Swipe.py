@@ -36,8 +36,10 @@ st.session_state.setdefault("matches", set())
 st.session_state.setdefault("liked", set())
 st.session_state.setdefault("passed", set())
 st.session_state.setdefault("my_tags", ["SaaS", "Fintech"])
+st.session_state.setdefault("user_plan", st.session_state.get("user_plan","Free"))
+st.session_state.setdefault("history", [])  # histórico simples de índices para Rewind
 
-# localização do usuário (demo: São Paulo). Defina real no 01_Perfil.
+# localização do usuário (padrão demo: São Paulo). 01_Perfil atualiza real.
 st.session_state.setdefault("my_lat", -23.5505)
 st.session_state.setdefault("my_lon", -46.6333)
 
@@ -65,7 +67,6 @@ def distance_label(p: dict) -> str:
     if None not in (my_lat, my_lon, lat2, lon2):
         km = haversine_km(my_lat, my_lon, lat2, lon2)
         return f"~{int(round(km))} km de você"
-    # fallback estável por id (demo)
     rid = p.get("id", 0)
     rnd = random.Random(rid)
     return f"~{rnd.randint(1, 25)} km de você"
@@ -155,11 +156,13 @@ st.markdown("".join([f'<span class="chip">{t}</span>' for t in p.get("tags", [])
 c1, c2, c3 = st.columns(3)
 with c1:
     if st.button("❌", use_container_width=True, key=f"pass_{pid}"):
+        st.session_state["history"].append(idx)
         st.session_state["passed"].add(pid)
         st.session_state["swipe_idx"] += 1
         st.rerun()
 with c2:
     if st.button("💙", use_container_width=True, key=f"like_{pid}"):
+        st.session_state["history"].append(idx)
         st.session_state["liked"].add(pid)
         if they_like_back(pid):
             st.session_state["matches"].add(pid)
@@ -175,6 +178,7 @@ with c2:
             st.rerun()
 with c3:
     if st.button("⭐", use_container_width=True, key=f"super_{pid}"):
+        st.session_state["history"].append(idx)
         st.session_state["liked"].add(pid)
         st.session_state["matches"].add(pid)
         st.session_state["last_match_idx"] = pid
@@ -186,6 +190,18 @@ with c3:
             st.success("É um match! (Super Like demo)")
 
 st.markdown("---")
+
+# Rewind (Pro)
+if st.session_state.get("user_plan") == "Pro":
+    if st.button("⤺ Rewind (Pro) — desfazer último swipe", use_container_width=True):
+        if st.session_state["history"]:
+            prev_idx = st.session_state["history"].pop()
+            st.session_state["swipe_idx"] = prev_idx
+            st.success("Última ação desfeita (demo).")
+            st.rerun()
+        else:
+            st.info("Nada para desfazer ainda.")
+
 if st.button("💥 Forçar Match (demo)", key=f"force_{pid}"):
     st.session_state["matches"].add(pid)
     st.session_state["last_match_idx"] = pid
