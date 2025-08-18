@@ -1,6 +1,5 @@
-import json
+import json, random
 from pathlib import Path
-import random
 import pandas as pd
 import streamlit as st
 from collections import Counter
@@ -11,11 +10,7 @@ PROFILES_JSON = BASE_DIR / "assets" / "profiles.json"
 @st.cache_data
 def load_profiles():
     with open(PROFILES_JSON, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    for p in data:
-        p.setdefault("type","investor")
-        p.setdefault("icon","💰" if p["type"]=="investor" else "🚀")
-    return data
+        return json.load(f)
 
 profiles = load_profiles()
 
@@ -27,13 +22,15 @@ for p in profiles:
 
 def profiles_to_df(items):
     return pd.DataFrame([{
-        "ID": p["id"], "Nome": p["name"], "Headline": p["headline"],
+        "ID": p.get("id"), "Nome": p.get("name",""), "Headline": p.get("headline",""),
         "País": p.get("country",""), "Estado": p.get("state",""), "Cidade": p.get("city",""),
-        "Tags": ", ".join(p["tags"]), "Plano": p["plan"], "Status": p["status"], "Imagem": p["image"],
+        "Tags": ", ".join(p.get("tags",[])), "Plano": p.get("plan"), "Status": p.get("status"),
+        "Tipo": p.get("type","investor"), "Icone": p.get("icon","")
     } for p in items])
 
 df_all = profiles_to_df(profiles)
 
+st.set_page_config(page_title="Admin", page_icon="🛠️", layout="wide")
 st.title("🛠️ Administrador (demonstração)")
 st.caption("Painel organizado para gestão do app (dados fictícios).")
 
@@ -44,8 +41,9 @@ with col3: st.metric("Taxa de Match (demo)", "18%")
 with col4: st.metric("Conversas ativas (demo)", "342")
 st.divider()
 
-tab_lista, tab_rel, tab_config = st.tabs(["📇 Usuários", "📊 Relatórios", "⚙️ Configurações (demo)"])
+tab_lista, tab_rel, tab_growth, tab_config = st.tabs(["📇 Usuários", "📊 Relatórios", "🚀 Top Growth (startups)", "⚙️ Configurações"])
 
+# ---- Lista de usuários ----
 with tab_lista:
     st.subheader("Gestão de perfis")
     c1,c2,c3,c4,c5 = st.columns([2,1.2,1.2,1.2,2])
@@ -54,7 +52,7 @@ with tab_lista:
     with c3: status_filter = st.multiselect("Status", ["Ativo","Suspenso"], [])
     with c4: state_filter = st.multiselect("Estado", sorted({p.get("state","") for p in profiles if p.get("state")}), [])
     with c5:
-        all_tags = sorted({t for p in profiles for t in p["tags"]})
+        all_tags = sorted({t for p in profiles for t in p.get("tags",[])})
         tag_filter = st.multiselect("Tag", all_tags, [])
 
     dff = df_all.copy()
@@ -81,7 +79,7 @@ with tab_lista:
 
     edited = st.data_editor(
         page_df,
-        column_config={"Selecionar": st.column_config.CheckboxColumn(),"Imagem": st.column_config.ImageColumn("Imagem")},
+        column_config={"Selecionar": st.column_config.CheckboxColumn()},
         hide_index=True, disabled=[c for c in page_df.columns if c!="Selecionar"],
         use_container_width=True, height=360
     )
@@ -99,9 +97,10 @@ with tab_lista:
         csv = dff.to_csv(index=False).encode("utf-8")
         st.download_button("⬇️ Exportar CSV (filtro atual)", csv, "usuarios_filtrados.csv", "text/csv")
 
+# ---- Relatórios rápidos ----
 with tab_rel:
     st.subheader("Relatórios rápidos (demo)")
-    tag_counts = Counter(t for p in profiles for t in p["tags"])
+    tag_counts = Counter(t for p in profiles for t in p.get("tags",[]))
     top_tags = (pd.DataFrame(tag_counts.most_common(8), columns=["Tag", "Contagem"])
                 .set_index("Tag"))
     st.markdown("**Top interesses**"); st.bar_chart(top_tags)
@@ -115,6 +114,33 @@ with tab_rel:
                     .value_counts().head(10).rename_axis("Estado").to_frame("Qtd"))
         st.markdown("**Top Estados**"); st.bar_chart(by_state)
 
+# ---- Top Growth (startups) ----
+with tab_growth:
+    st.subheader("🚀 Startups com melhor crescimento (com base em `metrics`)")
+    rows = []
+    for p in profiles:
+        if p.get("type") == "startup" and isinstance(p.get("metrics"), dict):
+            rows.append({
+                "Icone": p.get("icon","🚀"),
+                "Startup": p.get("name",""),
+                "Setores": ", ".join(p.get("tags",[])),
+                "Growth (%)": int(100 * p["metrics"].get("growth_rate", 0)),
+                "Churn (%)": int(100 * p["metrics"].get("churn", 0)),
+                "MRR (USD)": p["metrics"].get("MRR", 0),
+                "Estágio": p.get("stage","Seed"),
+                "Cidade": p.get("city","")
+            })
+    if rows:
+        df = (pd.DataFrame(rows)
+                .sort_values(["Growth (%)","MRR (USD)"], ascending=False)
+                .reset_index(drop=True))
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        csv = df.to_csv(index=False).encode("utf-8")
+        st.download_button("⬇️ Exportar CSV", csv, "top_growth_startups.csv", "text/csv")
+    else:
+        st.info("Nenhuma startup com `metrics` definida no profiles.json ainda.")
+
+# ---- Configurações ----
 with tab_config:
     st.subheader("Configurações rápidas (demonstração)")
     st.toggle("Revisão manual de novos perfis", value=True)
