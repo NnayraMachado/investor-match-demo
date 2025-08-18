@@ -1,5 +1,5 @@
 # pages/02_Swipe.py
-import json
+import json, math, random
 from pathlib import Path
 from secrets import randbelow
 import streamlit as st
@@ -16,12 +16,15 @@ def load_profiles():
     if PROFILE_FILE.exists():
         with open(PROFILE_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
+        # defaults de demo
         for i, p in enumerate(data[:2], start=1):
             p.setdefault("pitch_url", "https://www.youtube.com/embed/jfKfPfyJRdk")
         for p in data:
             p.setdefault("pitch_url", None)
-            p.setdefault("type","investor")
-            p.setdefault("icon", "💰" if p["type"]=="investor" else "🚀")
+            p.setdefault("type", "investor")
+            p.setdefault("icon", "💰" if p["type"] == "investor" else "🚀")
+            p.setdefault("lat", None)
+            p.setdefault("lon", None)
         return data
     return []
 
@@ -34,11 +37,38 @@ st.session_state.setdefault("liked", set())
 st.session_state.setdefault("passed", set())
 st.session_state.setdefault("my_tags", ["SaaS", "Fintech"])
 
+# localização do usuário (demo: São Paulo). Defina real no 01_Perfil.
+st.session_state.setdefault("my_lat", -23.5505)
+st.session_state.setdefault("my_lon", -46.6333)
+
 def they_like_back(profile_id: int) -> bool:
     key = f"likeback_{profile_id}"
     if key not in st.session_state:
         st.session_state[key] = randbelow(100) < 30  # 30%
     return st.session_state[key]
+
+# ---------- distância ----------
+def haversine_km(lat1, lon1, lat2, lon2):
+    R = 6371.0
+    from math import radians, sin, cos, atan2, sqrt
+    phi1, phi2 = radians(lat1), radians(lat2)
+    dphi = radians(lat2 - lat1)
+    dl = radians(lon2 - lon1)
+    a = sin(dphi/2)**2 + cos(phi1)*cos(phi2)*sin(dl/2)**2
+    c = 2*atan2(sqrt(a), sqrt(1-a))
+    return R * c
+
+def distance_label(p: dict) -> str:
+    my_lat = st.session_state.get("my_lat")
+    my_lon = st.session_state.get("my_lon")
+    lat2, lon2 = p.get("lat"), p.get("lon")
+    if None not in (my_lat, my_lon, lat2, lon2):
+        km = haversine_km(my_lat, my_lon, lat2, lon2)
+        return f"~{int(round(km))} km de você"
+    # fallback estável por id (demo)
+    rid = p.get("id", 0)
+    rnd = random.Random(rid)
+    return f"~{rnd.randint(1, 25)} km de você"
 
 # ---------- page ----------
 st.set_page_config(page_title="Explorar (Swipe)", page_icon="🔥", layout="centered")
@@ -62,6 +92,7 @@ st.markdown("""
   border:1px solid #eaeaea; border-radius:999px; background:#fafafa; }
 .meta { color:#6b7280; font-size:13px; margin-top:-4px; }
 .comp-wrap { margin: 6px 0 4px 0; }
+.distance { color:#6b7280; font-size:12px; margin-top:4px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -92,16 +123,17 @@ st.markdown('</div>', unsafe_allow_html=True)
 # badges
 st.markdown('<div class="badges"><span>⭐ Pro</span><span>🟢 Online</span></div>', unsafe_allow_html=True)
 
-# localização e título
+# título + meta
 headline = p.get("headline", "")
 loc = p.get("location", "")
 city = p.get("city") or (loc.split(",")[0].strip() if "," in loc else loc)
 state = p.get("state") or (loc.split(",")[1].strip() if "," in loc else "")
 country = p.get("country") or "Brasil"
-
 icon = p.get("icon","💰")
+
 st.markdown(f"**{icon} {p.get('name','')}**")
 st.markdown(f'<div class="meta">{headline} • {city}{(", " + state) if state else ""} • {country}</div>', unsafe_allow_html=True)
+st.markdown(f'<div class="distance">{distance_label(p)}</div>', unsafe_allow_html=True)
 
 # compatibilidade
 my = set(t.lower() for t in st.session_state.get("my_tags", []))
