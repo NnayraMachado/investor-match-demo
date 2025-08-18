@@ -3,7 +3,7 @@ from pathlib import Path
 import json, random
 
 st.title("👤 Meu Perfil")
-st.caption("Personalize seu perfil. Alguns itens são apenas para demonstração.")
+st.caption("Ajuste seu perfil. Campos extras ajudam no score de compatibilidade (Pro).")
 
 # ---- CSS para avatar por ícone ----
 st.markdown("""
@@ -13,6 +13,7 @@ st.markdown("""
 .icon-avatar span { font-size: 44px; }
 .icon-avatar.sm { width: 64px; height: 64px; }
 .icon-avatar.sm span { font-size: 32px; }
+.small { color:#6b7280; font-size:12px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -26,7 +27,6 @@ USER_DIR.mkdir(parents=True, exist_ok=True)
 def load_profiles():
     with open(PROFILES_JSON,"r",encoding="utf-8") as f:
         data = json.load(f)
-    # defaults para demo
     for p in data:
         p.setdefault("type","investor")
         p.setdefault("icon","💰" if p["type"]=="investor" else "🚀")
@@ -34,7 +34,7 @@ def load_profiles():
 
 profiles = load_profiles()
 
-# --- coordenadas simples por cidade ---
+# --- coordenadas por cidade ---
 CITY_COORDS = {
     ("Brasil","SP","São Paulo"): (-23.5505, -46.6333),
     ("Brasil","SP","Campinas"): (-22.9056, -47.0608),
@@ -64,7 +64,7 @@ with st.container(border=True):
         if st.session_state.get("my_photo"):
             st.image(st.session_state["my_photo"], width=140, caption=st.session_state.get("my_name","Você"))
         else:
-            st.info("Sem foto. Você pode usar só o ícone 😉")
+            st.info("Você pode usar só o ícone 😉")
     with colR:
         up = st.file_uploader("Enviar/alterar foto (JPG/PNG/WebP)", type=["png","jpg","jpeg","webp"])
         if up is not None:
@@ -76,7 +76,7 @@ with st.container(border=True):
             st.success("Foto atualizada!")
             st.rerun()
 
-# ---- localização (País/Estado/Cidade) ----
+# ---- localização ----
 COUNTRIES = {
     "Brasil": {
         "SP": ["São Paulo", "Campinas", "Santos"],
@@ -91,9 +91,18 @@ COUNTRIES = {
 }
 
 with st.form("perfil"):
-    nome = st.text_input("Nome", st.session_state.get("my_name","Você"))
-    headline = st.text_input("Headline", st.session_state.get("my_headline","Anjo | SaaS e Fintech"))
-    bio = st.text_area("Bio / Tese", st.session_state.get("my_bio","Investidor anjo focado em SaaS B2B e Fintech."))
+    st.markdown("### Dados básicos")
+    colA, colB = st.columns(2)
+    with colA:
+        nome = st.text_input("Nome", st.session_state.get("my_name","Você"))
+        user_type = st.selectbox("Você é…", ["investor","startup"], index=0 if st.session_state.get("my_type","investor")=="investor" else 1)
+        icon = st.selectbox("Seu ícone", ["🙂","💰","🚀","🧠","🏦","📈","🛠️","🧬","🌱","⚙️","🤖"],
+                            index=1 if st.session_state.get("my_icon")=="💰" else 0)
+    with colB:
+        headline = st.text_input("Headline", st.session_state.get("my_headline","Anjo | SaaS e Fintech"))
+        bio = st.text_area("Bio / Tese", st.session_state.get("my_bio","Investidor anjo focado em SaaS B2B e Fintech."), height=80)
+
+    st.markdown("### Localização")
     pais = st.selectbox("País", list(COUNTRIES.keys()),
                         index=list(COUNTRIES.keys()).index(st.session_state.get("my_country","Brasil")))
     estados = list(COUNTRIES[pais].keys())
@@ -102,20 +111,32 @@ with st.form("perfil"):
     cidades = COUNTRIES[pais][estado]
     cidade = st.selectbox("Cidade", cidades,
                           index=cidades.index(st.session_state.get("my_city", cidades[0])) if st.session_state.get("my_city") in cidades else 0)
+
+    st.markdown("### Preferências / estágio")
     tags = st.multiselect(
-        "Interesses",
+        "Interesses (tags)",
         ["Fintech","SaaS","Health","Agtech","AI","Cripto","Clima","Educação","Web3","Marketplace","Consumer","D2C","IoT","Indústria 4.0","Impacto","Retail","Martech","Infra","Energia","Logística"],
         st.session_state.get("my_tags",["SaaS","Fintech"])
     )
-    plano = st.selectbox("Plano", ["Free","Pro"], index=0 if st.session_state.get("user_plan","Free")=="Free" else 1)
 
-    # escolha de ícone do usuário
-    icon = st.selectbox("Seu ícone", ["🙂","💰","🚀","🧠","🏦","📈","🛠️","🧬","🌱","⚙️","🤖"],
-                        index=1 if st.session_state.get("my_icon")=="💰" else 0)
+    col1, col2 = st.columns(2)
+    with col1:
+        plano = st.selectbox("Plano", ["Free","Pro"], index=0 if st.session_state.get("user_plan","Free")=="Free" else 1)
+        stage = st.selectbox("Estágio da startup (se você for startup)", ["Pre-Seed","Seed","Series A"], index=1 if st.session_state.get("my_stage","Seed")=="Seed" else (0 if st.session_state.get("my_stage")=="Pre-Seed" else 2))
+    with col2:
+        raising = st.number_input("Rodada desejada (em mil USD, ex.: 1500)", 50, 100000, st.session_state.get("my_raising",1500), step=50)
+
+    colt1, colt2 = st.columns(2)
+    with colt1:
+        ticket_min = st.number_input("Ticket mín. (investidor, mil USD)", 25, 100000, st.session_state.get("my_ticket_min",100), step=25)
+    with colt2:
+        ticket_max = st.number_input("Ticket máx. (investidor, mil USD)", 25, 100000, st.session_state.get("my_ticket_max",2000), step=25)
 
     enviado = st.form_submit_button("Salvar (demo)")
     if enviado:
         st.session_state["my_name"] = nome
+        st.session_state["my_type"] = user_type
+        st.session_state["my_icon"] = icon
         st.session_state["my_headline"] = headline
         st.session_state["my_bio"] = bio
         st.session_state["my_country"] = pais
@@ -123,46 +144,41 @@ with st.form("perfil"):
         st.session_state["my_city"] = cidade
         st.session_state["my_tags"] = tags
         st.session_state["user_plan"] = plano
-        st.session_state["my_icon"] = icon
+        st.session_state["my_stage"] = stage
+        st.session_state["my_raising"] = raising
+        st.session_state["my_ticket_min"] = ticket_min
+        st.session_state["my_ticket_max"] = ticket_max
 
-        # coordenadas
         latlon = CITY_COORDS.get((pais, estado, cidade))
         if latlon:
             st.session_state["my_lat"], st.session_state["my_lon"] = latlon
         st.success("Perfil salvo!")
 
-# ---- preview do seu card ----
 with st.container(border=True):
     st.markdown("**Preview do seu card**")
     badges = []
     if st.session_state.get("user_plan")=="Pro": badges.append("⭐ Pro")
     badges.append("🟢 Online")
     st.caption(" · ".join(badges))
-
-    # mostra ícone (sempre) e foto (se existir) abaixo
     st.markdown(f'<div class="icon-avatar"><span>{st.session_state.get("my_icon","🙂")}</span></div>', unsafe_allow_html=True)
-    if st.session_state.get("my_photo"):
-        st.image(st.session_state["my_photo"], width=160, caption="Foto (opcional)")
-
+    if st.session_state.get("my_photo"): st.image(st.session_state["my_photo"], width=160, caption="Foto (opcional)")
     st.markdown(f"**{st.session_state.get('my_name','Você')}**")
     st.caption(f"{st.session_state.get('my_headline','')} • {st.session_state.get('my_city','')}, {st.session_state.get('my_state','')} • {st.session_state.get('my_country','')}")
     st.write(st.session_state.get("my_bio",""))
+    lat = st.session_state.get("my_lat"); lon = st.session_state.get("my_lon")
+    if lat is not None and lon is not None: st.caption(f"📍 {lat:.4f}, {lon:.4f}")
 
-# ---- quem curtiu você (AGORA SÓ ÍCONES) ----
 with st.container(border=True):
     st.markdown("**Quem curtiu você**")
     random.seed(99)
     likers = random.sample(profiles, k=min(4, len(profiles)))
     like_count = random.randint(8, 37)
     st.metric("Curtidas recebidas", like_count)
-
     if st.session_state.get("user_plan")!="Pro":
         st.warning("🔒 Torne-se **Pro** para ver quem curtiu seu perfil e acelerar os matches.")
     else:
         cols = st.columns(len(likers))
         for c, p in zip(cols, likers):
             with c:
-                # SUBSTITUI a imagem pelo ícone
-                icon = p.get("icon") or ("💰" if p.get("type")=="investor" else "🚀")
-                st.markdown(f'<div class="icon-avatar sm"><span>{icon}</span></div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="icon-avatar sm"><span>{p.get("icon","💰")}</span></div>', unsafe_allow_html=True)
                 st.caption(p["name"])
