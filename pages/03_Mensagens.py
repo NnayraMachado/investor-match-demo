@@ -1,6 +1,6 @@
 # pages/03_Mensagens.py
-import json, time, uuid
-from datetime import datetime, timedelta, timezone
+import json, time, uuid, math, random
+from datetime import datetime as _dt, timedelta, timezone
 from pathlib import Path
 import streamlit as st
 
@@ -8,7 +8,8 @@ import streamlit as st
 BASE_DIR = Path(__file__).resolve().parents[1]
 PROFILE_FILE = BASE_DIR / "assets" / "profiles.json"
 
-def norm(p): return p.replace("\\","/") if isinstance(p,str) else p
+def norm(p): 
+    return p.replace("\\","/") if isinstance(p,str) else p
 
 @st.cache_data
 def load_profiles():
@@ -18,6 +19,9 @@ def load_profiles():
         for p in data:
             p.setdefault("type","investor")
             p.setdefault("icon","💰" if p["type"]=="investor" else "🚀")
+            # coords são opcionais; se não existir, tudo bem (usamos fallback)
+            p.setdefault("lat", None)
+            p.setdefault("lon", None)
         return data
     return []
 
@@ -37,12 +41,46 @@ def avatar(img_rel: str|None, width: int = 88):
     else:
         st.image("https://via.placeholder.com/176.png?text=Perfil", width=width)
 
+# --- distância (Haversine) ---
+def haversine_km(lat1, lon1, lat2, lon2):
+    """Distância geodésica aproximada em km."""
+    R = 6371.0
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dl/2)**2
+    c = 2*math.atan2(math.sqrt(a), math.sqrt(1-a))
+    return R * c
+
+def distance_label(other_profile: dict) -> str:
+    """Retorna string estilo Tinder: '~2 km de você' / '~120 km de você' / 'distância não informada'."""
+    # suas coordenadas (defina em 01_Perfil.py quando a pessoa escolhe a cidade, se quiser)
+    my_lat = st.session_state.get("my_lat")
+    my_lon = st.session_state.get("my_lon")
+    lat2 = other_profile.get("lat")
+    lon2 = other_profile.get("lon")
+
+    # Se tivermos tudo, calcula real
+    if all(v is not None for v in (my_lat, my_lon, lat2, lon2)):
+        km = haversine_km(my_lat, my_lon, lat2, lon2)
+        return f"~{int(round(km))} km de você"
+
+    # Fallback demo: distância pseudo-aleatória, estável por perfil
+    rid = other_profile.get("id", 0)
+    rnd = random.Random(rid)  # semente estável por id
+    km = rnd.randint(1, 25)   # algo curto, “cidade grande”
+    return f"~{km} km de você"
+
 # ---------- state ----------
 st.session_state.setdefault("matches", set())
 st.session_state.setdefault("chat_with", None)
 st.session_state.setdefault("chats", {})          # {profile_id: [ {sender,text,ts,delivered_at,read_at,id} ]}
 st.session_state.setdefault("typing_their_until", 0.0)  # timestamp
 st.session_state.setdefault("user_name", "Você")
+
+# (Opcional) valores padrão de localização do usuário para a demo (São Paulo)
+st.session_state.setdefault("my_lat", -23.5505)
+st.session_state.setdefault("my_lon", -46.6333)
 
 # ---------- page ----------
 st.set_page_config(page_title="Mensagens", page_icon="💬", layout="centered")
@@ -61,6 +99,7 @@ st.markdown("""
 .typing { font-size:12px; color:#6b7280; margin:4px 0 8px; }
 .section { margin-top:16px; }
 .avatar img { width: 88px !important; height: 88px !important; object-fit: cover; border-radius: 12px; }
+.distance { color:#6b7280; font-size:12px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -98,6 +137,8 @@ with st.container(border=True):
         is_online = other.get("is_online", True)
         last_seen_min = other.get("last_seen_min", 5)
         icon = other.get("icon","💰")
+        dist_txt = distance_label(other)
+
         st.markdown(
             f"<div class='header-line'>"
             f"<div><b>{icon} Chat com {other.get('name','')}</b>"
@@ -106,6 +147,7 @@ with st.container(border=True):
             unsafe_allow_html=True
         )
         st.caption(f"{headline} • {human_last_seen(is_online,last_seen_min)}")
+        st.markdown(f"<span class='distance'>{dist_txt}</span>", unsafe_allow_html=True)
         if other.get("bio"):
             st.caption(other["bio"])
 
@@ -140,29 +182,30 @@ for m in hist:
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-# --- indicador de "digitando..." (sem callback em form) ---
+# --- indicador de "digitando..." ---
 if now < st.session_state["typing_their_until"]:
     st.markdown("<div class='typing'>✍️ digitando…</div>", unsafe_allow_html=True)
 
 st.markdown("----")
 
-# --- envio de mensagens (corrigido: sem on_change dentro do form) ---
+# --- envio de mensagens (sem callbacks dentro do form) ---
 input_key = f"msg_input_{pid}"
 last_key  = f"__last_val_{pid}"
-
-cur_val = st.session_state.get(input_key, "")
-prev_val = st.session_state.get(last_key, "")
-now = time.time()
-if cur_val != prev_val:
-    st.session_state["typing_their_until"] = now + 2
-st.session_state[last_key] = cur_val
 
 with st.form(key=f"form_send_{pid}", clear_on_submit=True):
     msg = st.text_input("Sua mensagem", key=input_key)
     sent = st.form_submit_button("Enviar", use_container_width=True)
 
+# detector “digitando…” (após o form existir)
+cur_val = st.session_state.get(input_key, "")
+prev_val = st.session_state.get(last_key, "")
+if cur_val != prev_val:
+    st.session_state["typing_their_until"] = time.time() + 2
+st.session_state[last_key] = cur_val
+
 if sent and msg.strip():
     ts = time.time()
+    # minha mensagem
     hist.append({
         "id": str(uuid.uuid4()),
         "sender": "me",
@@ -171,6 +214,7 @@ if sent and msg.strip():
         "delivered_at": ts + 0.8,
         "read_at": ts + 2.2
     })
+    # resposta automática (demo)
     hist.append({
         "id": str(uuid.uuid4()),
         "sender": "them",
@@ -178,13 +222,55 @@ if sent and msg.strip():
         "ts": ts + 1.0
     })
     st.session_state["chats"][pid] = hist
-    st.session_state[input_key] = ""  # limpa campo
     st.rerun()
 
 # --- agenda / call (demo) ---
 st.markdown("----")
 st.subheader("📅 Agendar call (demo)")
 
-from datetime import datetime as _dt
 opts = []
-base = _dt.now_
+base = _dt.now()
+for d in (1, 2, 3):   # amanhã, +2, +3 dias
+    for hr in (10, 14, 18):
+        t = (base + timedelta(days=d)).replace(hour=hr, minute=0, second=0, microsecond=0)
+        opts.append(t)
+
+chosen = st.selectbox(
+    "Sugestão de horário",
+    options=[o.strftime("%d/%m %H:%M") for o in opts],
+    index=0
+)
+title = st.text_input("Título da call", value=f"Call: {st.session_state.get('user_name','Você')} × {other.get('name','')}")
+meet_link = st.text_input("Link de vídeo (demo)", value="https://meet.google.com/xxx-xxxx-xxx")
+
+def make_ics(summary: str, start_dt: _dt, duration_min: int = 30, url: str = "") -> str:
+    dtstart = start_dt.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    dtend = (start_dt + timedelta(minutes=duration_min)).astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    uid = f"{uuid.uuid4()}@investor-match"
+    lines = [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "PRODID:-//Investor Match Demo//PT-BR",
+        "BEGIN:VEVENT",
+        f"UID:{uid}",
+        f"DTSTAMP:{_dt.utcnow().strftime('%Y%m%dT%H%M%SZ')}",
+        f"DTSTART:{dtstart}",
+        f"DTEND:{dtend}",
+        f"SUMMARY:{summary}",
+        f"DESCRIPTION:Convite gerado no Investor Match Demo\\n{url}",
+        f"URL:{url}",
+        "END:VEVENT",
+        "END:VCALENDAR"
+    ]
+    return "\r\n".join(lines)
+
+colA, colB = st.columns(2)
+with colA:
+    if st.button("📨 Gerar convite (.ics)", use_container_width=True, key="make_ics"):
+        pick = opts[[o.strftime("%d/%m %H:%M") for o in opts].index(chosen)]
+        ics_content = make_ics(title, pick, 30, meet_link)
+        st.download_button("⬇️ Baixar .ics", ics_content, file_name="convite_call.ics", mime="text/calendar", use_container_width=True)
+with colB:
+    st.link_button("▶️ Abrir link de vídeo (demo)", meet_link, use_container_width=True)
+
+st.markdown("</div>", unsafe_allow_html=True)
