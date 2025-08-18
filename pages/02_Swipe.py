@@ -4,9 +4,13 @@ from pathlib import Path
 from secrets import randbelow
 import streamlit as st
 
-# --- opcional (radar) ---
-import numpy as np
-import matplotlib.pyplot as plt
+# --- radar: tenta usar matplotlib/numpy; se não houver, cai para fallback com barras ---
+try:
+    import numpy as _np
+    import matplotlib.pyplot as _plt
+    _HAS_MPL = True
+except Exception:
+    _HAS_MPL = False
 
 BASE_DIR = Path(__file__).resolve().parents[1]
 PROFILE_FILE = BASE_DIR / "assets" / "profiles.json"
@@ -30,7 +34,7 @@ def load_profiles():
         return data
     return []
 
-def icon_of(p): 
+def icon_of(p):
     return p.get("icon") or ("💰" if p.get("type")=="investor" else "🚀")
 
 profiles = load_profiles()
@@ -121,23 +125,31 @@ def compat_score(p):
     return score, {"Tags": round(jacc), "Estágio": round(stage_fit), "Ticket": round(ticket_fit), "Distância": round(dist_fit)}
 
 def radar_plot(breakdown: dict, title: str = "Compatibilidade"):
-    """Desenha radar simples com matplotlib e o retorna via st.pyplot."""
-    labels = list(breakdown.keys())
-    values = list(breakdown.values())
-    # fecha o loop
-    labels += [labels[0]]
-    values += [values[0]]
-
-    angles = np.linspace(0, 2*np.pi, len(labels), endpoint=False)
-    fig = plt.figure(figsize=(4,4))
-    ax = plt.subplot(111, polar=True)
-    ax.plot(angles, values)
-    ax.fill(angles, values, alpha=0.1)
-    ax.set_xticks(angles)
-    ax.set_xticklabels(labels)
-    ax.set_yticklabels([])
-    ax.set_title(title, va='bottom')
-    st.pyplot(fig, use_container_width=True)
+    """
+    Se matplotlib/numpy estiverem instalados, desenha um radar.
+    Caso contrário, mostra um fallback com barras/progress sem quebrar o app.
+    """
+    if _HAS_MPL:
+        labels = list(breakdown.keys())
+        values = list(breakdown.values())
+        # fecha o loop
+        labels_closed = labels + [labels[0]]
+        values_closed = values + [values[0]]
+        angles = _np.linspace(0, 2*_np.pi, len(labels_closed), endpoint=False)
+        fig = _plt.figure(figsize=(4,4))
+        ax = _plt.subplot(111, polar=True)
+        ax.plot(angles, values_closed)
+        ax.fill(angles, values_closed, alpha=0.1)
+        ax.set_xticks(angles)
+        ax.set_xticklabels(labels_closed)
+        ax.set_yticklabels([])
+        ax.set_title(title, va='bottom')
+        st.pyplot(fig, use_container_width=True)
+    else:
+        st.caption("Visual simplificado (biblioteca de gráfico não disponível neste ambiente).")
+        for k,v in breakdown.items():
+            st.write(f"{k}: {v}%")
+            st.progress(v)
 
 # ---------- page ----------
 st.set_page_config(page_title="Explorar (Swipe)", page_icon="🔥", layout="centered")
