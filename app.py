@@ -12,13 +12,19 @@ def norm_img_path(p):
 def load_profiles():
     if PROFILE_FILE.exists():
         with open(PROFILE_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
+            data = json.load(f)
+        # defaults (para demo)
+        for p in data:
+            if "type" not in p:
+                p["type"] = "investor"
+            if "icon" not in p:
+                p["icon"] = "💰" if p["type"] == "investor" else "🚀"
+        return data
     return []
 
-def show_image(img_rel: str, height: int = 360):
-    """Mostra imagem local/URL com fallback e recorte (object-fit: cover via CSS)."""
+def show_image(img_rel: str):
+    """Mostra imagem local/URL com fallback (recorte via CSS .card-img)."""
     img_rel = norm_img_path(img_rel or "")
-    # Usaremos st.image com caminho RELATIVO (repo root)
     if img_rel and not img_rel.startswith("http") and (BASE_DIR / img_rel).exists():
         st.image(img_rel, use_container_width=True)
     elif img_rel.startswith("http"):
@@ -29,24 +35,34 @@ def show_image(img_rel: str, height: int = 360):
 # -------- page ----------
 st.set_page_config(page_title="Investor Match", page_icon="💼", layout="centered")
 
-# CSS global: containers compactos e imagem recortada
+# CSS global
 st.markdown("""
 <style>
+/* largura tipo "mobile" */
 .home-wrapper { max-width: 960px; margin: 0 auto; }
-.app-wrapper { max-width: 420px; margin: 0 auto; }
-.home-wrapper .stImage img,
-.app-wrapper .stImage img {
-    height: 360px;
-    object-fit: cover;
-    border-radius: 14px;
+.app-wrapper  { max-width: 420px; margin: 0 auto; }
+
+/* imagens padronizadas para cards */
+.card-img img {
+  width: 100% !important;
+  height: 260px !important;
+  object-fit: cover;
+  border-radius: 16px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.06);
 }
-@media (max-width: 480px){
-    .home-wrapper .stImage img,
-    .app-wrapper .stImage img { height: 260px; }
+
+/* avatar compacto */
+.avatar img {
+  width: 88px !important;
+  height: 88px !important;
+  object-fit: cover;
+  border-radius: 12px;
 }
-.badges span{
-    margin-right: 6px; font-size: 12px; padding:3px 8px; border-radius:8px;
-    background:#f2f4f7; border:1px solid #e5e7eb;
+
+/* chips/badges */
+.badges span, .chip {
+  font-size: 12px; padding: 4px 10px; border-radius: 999px;
+  background: #f7f8fa; border: 1px solid #edf0f2; margin-right: 6px;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -60,6 +76,7 @@ st.sidebar.page_link("pages/02_Swipe.py", label="Swipe")
 st.sidebar.page_link("pages/03_Mensagens.py", label="Mensagens")
 st.sidebar.page_link("pages/04_Assinatura.py", label="Assinatura")
 st.sidebar.page_link("pages/05_Admin_Demo.py", label="Admin Demo")
+st.sidebar.page_link("pages/06_Feed.py", label="Feed")
 st.sidebar.page_link("pages/07_Match.py", label="Match")
 st.sidebar.page_link("pages/08_Tendencias.py", label="Tendencias")
 
@@ -73,9 +90,12 @@ st.subheader("Perfis em destaque")
 
 if profiles:
     for p in profiles[:2]:
+        st.markdown('<div class="card-img">', unsafe_allow_html=True)
         show_image(p.get("image", ""))
-        st.markdown(f"**{p['name']}**")
-        st.caption(f"{p.get('headline','')} • {p.get('location','')}")
+        st.markdown('</div>', unsafe_allow_html=True)
+        icon = p.get("icon", "💰")
+        st.markdown(f"**{icon} {p['name']}**")
+        st.caption(f"{p.get('headline','')} • {p.get('location', p.get('city',''))}")
         st.write(p.get("bio",""))
         st.divider()
 else:
