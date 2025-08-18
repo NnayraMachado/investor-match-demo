@@ -4,7 +4,6 @@ from datetime import datetime as _dt, timedelta, timezone
 from pathlib import Path
 import streamlit as st
 
-# ---------- paths / helpers ----------
 BASE_DIR = Path(__file__).resolve().parents[1]
 PROFILE_FILE = BASE_DIR / "assets" / "profiles.json"
 
@@ -19,9 +18,7 @@ def load_profiles():
         for p in data:
             p.setdefault("type","investor")
             p.setdefault("icon","💰" if p["type"]=="investor" else "🚀")
-            # coords são opcionais; se não existir, tudo bem (usamos fallback)
-            p.setdefault("lat", None)
-            p.setdefault("lon", None)
+            p.setdefault("lat", None); p.setdefault("lon", None)
         return data
     return []
 
@@ -41,9 +38,8 @@ def avatar(img_rel: str|None, width: int = 88):
     else:
         st.image("https://via.placeholder.com/176.png?text=Perfil", width=width)
 
-# --- distância (Haversine) ---
+# distância
 def haversine_km(lat1, lon1, lat2, lon2):
-    """Distância geodésica aproximada em km."""
     R = 6371.0
     phi1, phi2 = math.radians(lat1), math.radians(lat2)
     dphi = math.radians(lat2 - lat1)
@@ -53,39 +49,26 @@ def haversine_km(lat1, lon1, lat2, lon2):
     return R * c
 
 def distance_label(other_profile: dict) -> str:
-    """Retorna string estilo Tinder: '~2 km de você' / '~120 km de você' / 'distância não informada'."""
-    # suas coordenadas (defina em 01_Perfil.py quando a pessoa escolhe a cidade, se quiser)
     my_lat = st.session_state.get("my_lat")
     my_lon = st.session_state.get("my_lon")
-    lat2 = other_profile.get("lat")
-    lon2 = other_profile.get("lon")
-
-    # Se tivermos tudo, calcula real
+    lat2 = other_profile.get("lat"); lon2 = other_profile.get("lon")
     if all(v is not None for v in (my_lat, my_lon, lat2, lon2)):
         km = haversine_km(my_lat, my_lon, lat2, lon2)
         return f"~{int(round(km))} km de você"
-
-    # Fallback demo: distância pseudo-aleatória, estável por perfil
-    rid = other_profile.get("id", 0)
-    rnd = random.Random(rid)  # semente estável por id
-    km = rnd.randint(1, 25)   # algo curto, “cidade grande”
-    return f"~{km} km de você"
+    rnd = random.Random(other_profile.get("id",0))
+    return f"~{rnd.randint(1,25)} km de você"
 
 # ---------- state ----------
 st.session_state.setdefault("matches", set())
 st.session_state.setdefault("chat_with", None)
-st.session_state.setdefault("chats", {})          # {profile_id: [ {sender,text,ts,delivered_at,read_at,id} ]}
-st.session_state.setdefault("typing_their_until", 0.0)  # timestamp
+st.session_state.setdefault("chats", {})
+st.session_state.setdefault("typing_their_until", 0.0)
 st.session_state.setdefault("user_name", "Você")
-
-# (Opcional) valores padrão de localização do usuário para a demo (São Paulo)
-st.session_state.setdefault("my_lat", -23.5505)
+st.session_state.setdefault("my_lat", -23.5505)  # padrão demo
 st.session_state.setdefault("my_lon", -46.6333)
 
-# ---------- page ----------
 st.set_page_config(page_title="Mensagens", page_icon="💬", layout="centered")
 
-# CSS compacto
 st.markdown("""
 <style>
 .app { max-width: 480px; margin: 0 auto; }
@@ -108,7 +91,7 @@ st.markdown("## 💬 Mensagens")
 
 profiles = load_profiles()
 
-# --- matches / seleção ---
+# matches
 match_ids = list(st.session_state.get("matches") or [])
 if not match_ids:
     st.info("Você ainda não tem matches. Volte ao **Explorar (Swipe)** e curta alguns perfis.")
@@ -124,7 +107,7 @@ if not other:
     st.warning("Não foi possível carregar o match selecionado.")
     st.markdown("</div>", unsafe_allow_html=True); st.stop()
 
-# --- header do chat ---
+# header
 with st.container(border=True):
     c1, c2 = st.columns([1,4])
     with c1:
@@ -137,8 +120,6 @@ with st.container(border=True):
         is_online = other.get("is_online", True)
         last_seen_min = other.get("last_seen_min", 5)
         icon = other.get("icon","💰")
-        dist_txt = distance_label(other)
-
         st.markdown(
             f"<div class='header-line'>"
             f"<div><b>{icon} Chat com {other.get('name','')}</b>"
@@ -147,11 +128,11 @@ with st.container(border=True):
             unsafe_allow_html=True
         )
         st.caption(f"{headline} • {human_last_seen(is_online,last_seen_min)}")
-        st.markdown(f"<span class='distance'>{dist_txt}</span>", unsafe_allow_html=True)
+        st.markdown(f"<span class='distance'>{distance_label(other)}</span>", unsafe_allow_html=True)
         if other.get("bio"):
             st.caption(other["bio"])
 
-# --- ALERTA DE SEGURANÇA ---
+# alerta
 with st.expander("🔒 Dicas rápidas de segurança"):
     st.markdown(
         "- Nunca envie chaves privadas, código de autenticação ou dados bancários pelo chat.\n"
@@ -160,7 +141,7 @@ with st.expander("🔒 Dicas rápidas de segurança"):
         "- Perfis **Verificados** passam checagens de identidade/documentos."
     )
 
-# --- histórico ---
+# histórico
 now = time.time()
 hist = st.session_state["chats"].setdefault(pid, [])
 
@@ -182,13 +163,13 @@ for m in hist:
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-# --- indicador de "digitando..." ---
+# digitando
 if now < st.session_state["typing_their_until"]:
     st.markdown("<div class='typing'>✍️ digitando…</div>", unsafe_allow_html=True)
 
 st.markdown("----")
 
-# --- envio de mensagens (sem callbacks dentro do form) ---
+# envio (sem callbacks no form)
 input_key = f"msg_input_{pid}"
 last_key  = f"__last_val_{pid}"
 
@@ -196,7 +177,6 @@ with st.form(key=f"form_send_{pid}", clear_on_submit=True):
     msg = st.text_input("Sua mensagem", key=input_key)
     sent = st.form_submit_button("Enviar", use_container_width=True)
 
-# detector “digitando…” (após o form existir)
 cur_val = st.session_state.get(input_key, "")
 prev_val = st.session_state.get(last_key, "")
 if cur_val != prev_val:
@@ -205,7 +185,6 @@ st.session_state[last_key] = cur_val
 
 if sent and msg.strip():
     ts = time.time()
-    # minha mensagem
     hist.append({
         "id": str(uuid.uuid4()),
         "sender": "me",
@@ -214,7 +193,6 @@ if sent and msg.strip():
         "delivered_at": ts + 0.8,
         "read_at": ts + 2.2
     })
-    # resposta automática (demo)
     hist.append({
         "id": str(uuid.uuid4()),
         "sender": "them",
@@ -224,22 +202,18 @@ if sent and msg.strip():
     st.session_state["chats"][pid] = hist
     st.rerun()
 
-# --- agenda / call (demo) ---
+# agenda / call
 st.markdown("----")
 st.subheader("📅 Agendar call (demo)")
 
 opts = []
 base = _dt.now()
-for d in (1, 2, 3):   # amanhã, +2, +3 dias
+for d in (1, 2, 3):
     for hr in (10, 14, 18):
         t = (base + timedelta(days=d)).replace(hour=hr, minute=0, second=0, microsecond=0)
         opts.append(t)
 
-chosen = st.selectbox(
-    "Sugestão de horário",
-    options=[o.strftime("%d/%m %H:%M") for o in opts],
-    index=0
-)
+chosen = st.selectbox("Sugestão de horário", options=[o.strftime("%d/%m %H:%M") for o in opts], index=0)
 title = st.text_input("Título da call", value=f"Call: {st.session_state.get('user_name','Você')} × {other.get('name','')}")
 meet_link = st.text_input("Link de vídeo (demo)", value="https://meet.google.com/xxx-xxxx-xxx")
 
@@ -248,19 +222,13 @@ def make_ics(summary: str, start_dt: _dt, duration_min: int = 30, url: str = "")
     dtend = (start_dt + timedelta(minutes=duration_min)).astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     uid = f"{uuid.uuid4()}@investor-match"
     lines = [
-        "BEGIN:VCALENDAR",
-        "VERSION:2.0",
-        "PRODID:-//Investor Match Demo//PT-BR",
-        "BEGIN:VEVENT",
-        f"UID:{uid}",
+        "BEGIN:VCALENDAR","VERSION:2.0","PRODID:-//Investor Match Demo//PT-BR",
+        "BEGIN:VEVENT",f"UID:{uid}",
         f"DTSTAMP:{_dt.utcnow().strftime('%Y%m%dT%H%M%SZ')}",
-        f"DTSTART:{dtstart}",
-        f"DTEND:{dtend}",
+        f"DTSTART:{dtstart}",f"DTEND:{dtend}",
         f"SUMMARY:{summary}",
         f"DESCRIPTION:Convite gerado no Investor Match Demo\\n{url}",
-        f"URL:{url}",
-        "END:VEVENT",
-        "END:VCALENDAR"
+        f"URL:{url}","END:VEVENT","END:VCALENDAR"
     ]
     return "\r\n".join(lines)
 
