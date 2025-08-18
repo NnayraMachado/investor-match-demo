@@ -4,19 +4,13 @@ from pathlib import Path
 from secrets import randbelow
 import streamlit as st
 
-# ---------- paths / data ----------
 BASE_DIR = Path(__file__).resolve().parents[1]
 PROFILE_FILE = BASE_DIR / "assets" / "profiles.json"
 
-def norm_img_path(p):
-    return p.replace("\\", "/") if isinstance(p, str) else p
-
-@st.cache_data
 def load_profiles():
     if PROFILE_FILE.exists():
         with open(PROFILE_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-        # defaults de demo
         for i, p in enumerate(data[:2], start=1):
             p.setdefault("pitch_url", "https://www.youtube.com/embed/jfKfPfyJRdk")
         for p in data:
@@ -28,6 +22,9 @@ def load_profiles():
         return data
     return []
 
+def profile_icon(p):
+    return p.get("icon") or ("💰" if p.get("type") == "investor" else "🚀")
+
 profiles = load_profiles()
 
 # ---------- estado ----------
@@ -35,29 +32,28 @@ st.session_state.setdefault("swipe_idx", 0)
 st.session_state.setdefault("matches", set())
 st.session_state.setdefault("liked", set())
 st.session_state.setdefault("passed", set())
+st.session_state.setdefault("history", [])
 st.session_state.setdefault("my_tags", ["SaaS", "Fintech"])
 st.session_state.setdefault("user_plan", st.session_state.get("user_plan","Free"))
-st.session_state.setdefault("history", [])  # histórico simples de índices para Rewind
 
-# localização do usuário (padrão demo: São Paulo). 01_Perfil atualiza real.
+# localização do usuário (01_Perfil atualiza real)
 st.session_state.setdefault("my_lat", -23.5505)
 st.session_state.setdefault("my_lon", -46.6333)
 
 def they_like_back(profile_id: int) -> bool:
     key = f"likeback_{profile_id}"
     if key not in st.session_state:
-        st.session_state[key] = randbelow(100) < 30  # 30%
+        st.session_state[key] = randbelow(100) < 30
     return st.session_state[key]
 
-# ---------- distância ----------
+# distância
 def haversine_km(lat1, lon1, lat2, lon2):
     R = 6371.0
-    from math import radians, sin, cos, atan2, sqrt
-    phi1, phi2 = radians(lat1), radians(lat2)
-    dphi = radians(lat2 - lat1)
-    dl = radians(lon2 - lon1)
-    a = sin(dphi/2)**2 + cos(phi1)*cos(phi2)*sin(dl/2)**2
-    c = 2*atan2(sqrt(a), sqrt(1-a))
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dl = math.radians(lon2 - lon1)
+    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dl/2)**2
+    c = 2*math.atan2(math.sqrt(a), math.sqrt(1-a))
     return R * c
 
 def distance_label(p: dict) -> str:
@@ -67,33 +63,31 @@ def distance_label(p: dict) -> str:
     if None not in (my_lat, my_lon, lat2, lon2):
         km = haversine_km(my_lat, my_lon, lat2, lon2)
         return f"~{int(round(km))} km de você"
-    rid = p.get("id", 0)
-    rnd = random.Random(rid)
-    return f"~{rnd.randint(1, 25)} km de você"
+    rnd = random.Random(p.get("id",0))
+    return f"~{rnd.randint(1,25)} km de você"
 
 # ---------- page ----------
 st.set_page_config(page_title="Explorar (Swipe)", page_icon="🔥", layout="centered")
 
-# CSS
 st.markdown("""
 <style>
 .app-wrapper { max-width: 420px; margin: 0 auto; }
-.card-img img {
-    width: 100% !important;
-    height: 260px !important;
-    object-fit: cover;
-    border-radius: 16px;
-    box-shadow: 0 8px 24px rgba(0,0,0,.08);
-}
+
+/* bloco grande do ícone (substitui a foto) */
+.card-icon { width: 100%; height: 220px; border-radius: 16px;
+             background: linear-gradient(180deg, #f1f5f9, #e2e8f0);
+             display:flex; align-items:center; justify-content:center;
+             box-shadow: 0 8px 24px rgba(0,0,0,.08); margin-bottom:8px; }
+.card-icon span { font-size: 110px; line-height: 1; }
+
 .badges span{
   margin-right: 6px; font-size: 12px; padding:3px 8px; border-radius:8px;
   background:#f2f4f7; border:1px solid #e5e7eb;
 }
 .chip { display:inline-block; padding:4px 10px; margin:4px 6px 0 0; font-size:12px;
   border:1px solid #eaeaea; border-radius:999px; background:#fafafa; }
-.meta { color:#6b7280; font-size:13px; margin-top:-4px; }
+.meta, .distance { color:#6b7280; font-size:13px; }
 .comp-wrap { margin: 6px 0 4px 0; }
-.distance { color:#6b7280; font-size:12px; margin-top:4px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -110,16 +104,8 @@ idx = st.session_state["swipe_idx"] % len(profiles)
 p = profiles[idx]
 pid = p.get("id", idx)
 
-# IMAGEM
-img_rel = norm_img_path(p.get("image", ""))
-st.markdown('<div class="card-img">', unsafe_allow_html=True)
-if img_rel and not img_rel.startswith("http") and (BASE_DIR / img_rel).exists():
-    st.image(img_rel, use_container_width=True)
-elif img_rel.startswith("http"):
-    st.image(img_rel, use_container_width=True)
-else:
-    st.image("https://via.placeholder.com/800x600.png?text=Investor+Match", use_container_width=True)
-st.markdown('</div>', unsafe_allow_html=True)
+# ÍCONE no lugar da foto
+st.markdown(f'<div class="card-icon"><span>{profile_icon(p)}</span></div>', unsafe_allow_html=True)
 
 # badges
 st.markdown('<div class="badges"><span>⭐ Pro</span><span>🟢 Online</span></div>', unsafe_allow_html=True)
@@ -130,9 +116,8 @@ loc = p.get("location", "")
 city = p.get("city") or (loc.split(",")[0].strip() if "," in loc else loc)
 state = p.get("state") or (loc.split(",")[1].strip() if "," in loc else "")
 country = p.get("country") or "Brasil"
-icon = p.get("icon","💰")
 
-st.markdown(f"**{icon} {p.get('name','')}**")
+st.markdown(f"**{profile_icon(p)} {p.get('name','')}**")
 st.markdown(f'<div class="meta">{headline} • {city}{(", " + state) if state else ""} • {country}</div>', unsafe_allow_html=True)
 st.markdown(f'<div class="distance">{distance_label(p)}</div>', unsafe_allow_html=True)
 
@@ -168,7 +153,7 @@ with c2:
             st.session_state["matches"].add(pid)
             st.session_state["last_match_idx"] = pid
             st.session_state["last_match_name"] = p.get("name","")
-            st.session_state["last_match_image"] = img_rel
+            st.session_state["last_match_image"] = ""  # não usamos mais foto
             try:
                 st.switch_page("pages/07_Match.py")
             except Exception:
@@ -183,7 +168,7 @@ with c3:
         st.session_state["matches"].add(pid)
         st.session_state["last_match_idx"] = pid
         st.session_state["last_match_name"] = p.get("name","")
-        st.session_state["last_match_image"] = img_rel
+        st.session_state["last_match_image"] = ""
         try:
             st.switch_page("pages/07_Match.py")
         except Exception:
@@ -206,7 +191,7 @@ if st.button("💥 Forçar Match (demo)", key=f"force_{pid}"):
     st.session_state["matches"].add(pid)
     st.session_state["last_match_idx"] = pid
     st.session_state["last_match_name"] = p.get("name","")
-    st.session_state["last_match_image"] = img_rel
+    st.session_state["last_match_image"] = ""
     try:
         st.switch_page("pages/07_Match.py")
     except Exception:
