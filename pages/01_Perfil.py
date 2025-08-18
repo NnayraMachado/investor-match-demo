@@ -13,7 +13,13 @@ USER_DIR.mkdir(parents=True, exist_ok=True)
 
 @st.cache_data
 def load_profiles():
-    with open(PROFILES_JSON,"r",encoding="utf-8") as f: return json.load(f)
+    with open(PROFILES_JSON,"r",encoding="utf-8") as f:
+        data = json.load(f)
+    for p in data:
+        p.setdefault("type","investor")
+        p.setdefault("icon","💰" if p["type"]=="investor" else "🚀")
+    return data
+
 profiles = load_profiles()
 
 # ---- foto do usuário ----
@@ -84,15 +90,18 @@ with st.container(border=True):
     if st.session_state.get("user_plan")=="Pro": badges.append("⭐ Pro")
     badges.append("🟢 Online")  # demo
     st.caption(" · ".join(badges))
-    if st.session_state.get("my_photo"): st.image(st.session_state["my_photo"], width=320, caption=st.session_state.get("my_name","Você"))
-    st.markdown(f"**{st.session_state.get('my_name','Você')}**")
+    if st.session_state.get("my_photo"):
+        st.markdown('<div class="card-img">', unsafe_allow_html=True)
+        st.image(st.session_state["my_photo"], use_container_width=True)
+        st.markdown('</div>', unsafe_allow_html=True)
+    icon = "💰"  # demo
+    st.markdown(f"**{icon} {st.session_state.get('my_name','Você')}**")
     st.caption(f"{st.session_state.get('my_headline','')} • {st.session_state.get('my_city','')}, {st.session_state.get('my_state','')} • {st.session_state.get('my_country','')}")
     st.write(st.session_state.get("my_bio",""))
 
 # ---- pessoas que curtiram você (paywall) ----
 with st.container(border=True):
     st.markdown("**Quem curtiu você**")
-    # gera uma amostra fictícia de quem curtiu
     random.seed(99)
     likers = random.sample(profiles, k=min(4, len(profiles)))
     like_count = random.randint(8, 37)
@@ -105,4 +114,4 @@ with st.container(border=True):
         for c, p in zip(cols, likers):
             with c:
                 st.image(p["image"], width=80)
-                st.caption(p["name"])
+                st.caption(f"{p.get('icon','')} {p['name']}")
