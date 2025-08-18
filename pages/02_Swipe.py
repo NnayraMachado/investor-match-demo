@@ -16,11 +16,12 @@ def load_profiles():
     if PROFILE_FILE.exists():
         with open(PROFILE_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
-        # garante campos e demo de pitch para 2 perfis
         for i, p in enumerate(data[:2], start=1):
             p.setdefault("pitch_url", "https://www.youtube.com/embed/jfKfPfyJRdk")
-        for p in data[2:]:
+        for p in data:
             p.setdefault("pitch_url", None)
+            p.setdefault("type","investor")
+            p.setdefault("icon", "💰" if p["type"]=="investor" else "🚀")
         return data
     return []
 
@@ -34,20 +35,18 @@ st.session_state.setdefault("passed", set())
 st.session_state.setdefault("my_tags", ["SaaS", "Fintech"])
 
 def they_like_back(profile_id: int) -> bool:
-    """prob. fixa por perfil (não muda no refresh)"""
     key = f"likeback_{profile_id}"
     if key not in st.session_state:
-        st.session_state[key] = randbelow(100) < 30  # 30% chance
+        st.session_state[key] = randbelow(100) < 30  # 30%
     return st.session_state[key]
 
 # ---------- page ----------
 st.set_page_config(page_title="Explorar (Swipe)", page_icon="🔥", layout="centered")
 
-# CSS – tela “mobile” e imagem REALMENTE menor (260px)
+# CSS
 st.markdown("""
 <style>
 .app-wrapper { max-width: 420px; margin: 0 auto; }
-/* força a imagem do card a 260px de altura */
 .card-img img {
     width: 100% !important;
     height: 260px !important;
@@ -79,7 +78,7 @@ idx = st.session_state["swipe_idx"] % len(profiles)
 p = profiles[idx]
 pid = p.get("id", idx)
 
-# IMAGEM (normalizada + fallback) dentro do container .card-img
+# IMAGEM
 img_rel = norm_img_path(p.get("image", ""))
 st.markdown('<div class="card-img">', unsafe_allow_html=True)
 if img_rel and not img_rel.startswith("http") and (BASE_DIR / img_rel).exists():
@@ -93,14 +92,15 @@ st.markdown('</div>', unsafe_allow_html=True)
 # badges
 st.markdown('<div class="badges"><span>⭐ Pro</span><span>🟢 Online</span></div>', unsafe_allow_html=True)
 
-# localização com fallback
+# localização e título
 headline = p.get("headline", "")
 loc = p.get("location", "")
 city = p.get("city") or (loc.split(",")[0].strip() if "," in loc else loc)
 state = p.get("state") or (loc.split(",")[1].strip() if "," in loc else "")
 country = p.get("country") or "Brasil"
 
-st.markdown(f"**{p.get('name','')}**")
+icon = p.get("icon","💰")
+st.markdown(f"**{icon} {p.get('name','')}**")
 st.markdown(f'<div class="meta">{headline} • {city}{(", " + state) if state else ""} • {country}</div>', unsafe_allow_html=True)
 
 # compatibilidade
