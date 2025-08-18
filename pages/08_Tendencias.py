@@ -13,7 +13,6 @@ def trend_last_3m(seed:int=123):
         series.append(max(80, base))
     delta = series[-1] - series[0]
     label = "🔼 Otimista" if delta > 5 else ("➖ Moderado" if -5 <= delta <= 5 else "🔽 Cauteloso")
-    # setores com “pontuação” fictícia
     sectors = {
         "SaaS": random.randint(60, 95),
         "Fintech": random.randint(60, 95),
@@ -44,14 +43,11 @@ if st.session_state.get("user_plan") != "Pro":
     st.warning("🔒 Este é um **preview**. No Pro você vê a análise completa por **setor**, **região**, **volatilidade** e **recomendações**.")
 else:
     st.subheader("Análise completa (Pro)")
-    # Quebra por setor (gráfico)
     st.markdown("**Pontuação por setor** (quanto maior, mais 'quente'):")
     st.bar_chart({k:v for k,v in sectors.items()})
-    # Volatilidade fictícia
     st.markdown("**Volatilidade** (baixa é melhor para previsibilidade):")
     vol = {k: max(5, int((100 - v)/3) + random.randint(0,6)) for k,v in sectors.items()}
     st.bar_chart(vol)
-    # Recomendações
     st.markdown("**Recomendações**")
     bullets = []
     hot = [k for k,v in sectors.items() if v >= 80]
